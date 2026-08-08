@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
-import { ArrowLeft, Trash2, Send, Image as ImageIcon, X } from 'lucide-react';
+import { ArrowLeft, Trash2, Send, Image as ImageIcon, X, Lock, Globe } from 'lucide-react';
 import { AvatarIcon } from './AvatarPicker';
 import { rgba } from '../utils/colors';
-import { api } from '../api/client';
+import { api, API_URL } from '../api/client';
 
 const SURFACE = '#1D1E26';
 const SURFACE_2 = '#24252E';
@@ -68,6 +68,30 @@ export default function ChatView({
         )}
       </div>
 
+      <div className="px-4 py-4">
+        <div className="rounded-3xl border border-white/10 bg-[#1D1E26] p-4 mb-4">
+          <div className="flex items-start gap-3">
+            <div className="w-14 h-14 rounded-full overflow-hidden">
+              <AvatarIcon avatarType={character.avatarType} avatarValue={character.avatarValue} size={56} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="font-semibold text-lg truncate" style={{ fontFamily: 'Unbounded, sans-serif', color: TEXT }}>
+                  {character.name}
+                </div>
+                {character.visibility === 'private' ? (
+                  <Lock size={14} color={MUTED} />
+                ) : (
+                  <Globe size={14} color={MUTED} />
+                )}
+              </div>
+              <div className="text-xs leading-5" style={{ color: MUTED }}>
+                {character.description}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2.5">
         {messages.length === 0 && (
           <div className="text-center text-xs py-8" style={{ color: MUTED }}>
@@ -85,7 +109,13 @@ export default function ChatView({
                   : { background: characterBubbleColor, color: '#0E0E12', borderBottomLeftRadius: 6 }
               }
             >
-              {m.imageUrl && <img src={m.imageUrl} alt="" className="w-full max-h-64 object-cover" />}
+              {m.imageUrl && (
+                <img
+                  src={m.imageUrl.startsWith('/') ? `${API_URL}${m.imageUrl}` : m.imageUrl}
+                  alt=""
+                  className="w-full max-h-64 object-cover"
+                />
+              )}
               {m.content && <div className="px-3.5 py-2.5 whitespace-pre-wrap">{m.content}</div>}
             </div>
             {m.role === 'user' && <AvatarIcon avatarType={user.avatarType} avatarValue={user.avatarValue} size={24} />}

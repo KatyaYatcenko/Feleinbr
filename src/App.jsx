@@ -5,6 +5,7 @@ import CreateView from './components/CreateView';
 import ChatView from './components/ChatView';
 import SettingsView from './components/SettingsView';
 import { api, getToken, setToken } from './api/client';
+import { useInstallPrompt } from './useInstallPrompt';
 
 const BG = '#14151B';
 const TEXT = '#ECEAF3';
@@ -32,12 +33,14 @@ export default function App() {
   const [characters, setCharacters] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const ACTIVE_CHARACTER_KEY = 'feleinbr_active_character';
   const [theme, setThemeState] = useState(loadTheme);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef(null);
 
   const activeChar = characters.find((c) => c.id === activeId);
+  const { promptEvent, promptInstall } = useInstallPrompt();
 
   function setTheme(updater) {
     setThemeState((prev) => {
@@ -72,6 +75,19 @@ export default function App() {
   }, [user, loadCharacters]);
 
   useEffect(() => {
+    if (!user || characters.length === 0) return;
+    const savedId = Number(localStorage.getItem(ACTIVE_CHARACTER_KEY));
+    const existing = characters.find((c) => c.id === savedId);
+    if (existing) {
+      setActiveId(savedId);
+      return;
+    }
+    if (characters.length > 0 && activeId === null) {
+      setActiveId(characters[0].id);
+    }
+  }, [user, characters]);
+
+  useEffect(() => {
     if (!activeChar) {
       setMessages([]);
       return;
@@ -87,10 +103,19 @@ export default function App() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, loading]);
 
+  function setActiveCharacter(id) {
+    setActiveId(id);
+    if (id == null) {
+      localStorage.removeItem(ACTIVE_CHARACTER_KEY);
+    } else {
+      localStorage.setItem(ACTIVE_CHARACTER_KEY, id);
+    }
+  }
+
   async function handleCreateCharacter(payload) {
     const { character } = await api.createCharacter(payload);
     setCharacters((prev) => [character, ...prev]);
-    setActiveId(character.id);
+    setActiveCharacter(character.id);
     setView('chat');
   }
 
@@ -98,7 +123,7 @@ export default function App() {
     await api.deleteCharacter(id);
     setCharacters((prev) => prev.filter((c) => c.id !== id));
     if (activeId === id) {
-      setActiveId(null);
+      setActiveCharacter(null);
       setView('list');
     }
   }
@@ -123,7 +148,7 @@ export default function App() {
     setToken(null);
     setUser(null);
     setCharacters([]);
-    setActiveId(null);
+    setActiveCharacter(null);
     setView('list');
   }
 
@@ -162,13 +187,33 @@ export default function App() {
           <ListView
             characters={characters}
             buttonsColor={theme.buttonsColor}
-            onOpen={(id) => { setActiveId(id); setView('chat'); }}
+            onOpen={(id) => { setActiveCharacter(id); setView('chat'); }}
             onCreate={() => setView('create')}
             onSettings={() => setView('settings')}
           />
         </div>
 
         <div className={`${view === 'list' ? 'hidden md:flex' : 'flex'} flex-col flex-1`} style={{ background: BG }}>
+          {promptEvent && view !== 'create' && view !== 'settings' && (
+            <div className="px-4 py-3 bg-[#191A22] border-b border-white/10 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold" style={{ color: TEXT, fontFamily: 'Unbounded, sans-serif' }}>
+                  Встановити Фелейнбр
+                </div>
+                <div className="text-xs" style={{ color: '#8B8996' }}>
+                  Додай цей веб-додаток на домашній екран.
+                </div>
+              </div>
+              <button
+                onClick={() => promptInstall()}
+                className="px-4 py-2 rounded-xl font-semibold"
+                style={{ background: theme.buttonsColor, color: '#0E0E12' }}
+              >
+                Встановити
+              </button>
+            </div>
+          )}
+
           {view === 'create' && (
             <CreateView buttonsColor={theme.buttonsColor} onBack={() => setView('list')} onCreate={handleCreateCharacter} />
           )}
