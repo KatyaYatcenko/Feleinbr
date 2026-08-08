@@ -1,0 +1,35 @@
+import express from 'express';
+import multer from 'multer';
+import path from 'path';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+import { requireAuth } from '../middleware/auth.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, uploadsDir),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, crypto.randomBytes(16).toString('hex') + ext);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) return cb(new Error('Дозволені лише зображення'));
+    cb(null, true);
+  },
+});
+
+const router = express.Router();
+
+router.post('/', requireAuth, upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'Файл не завантажено' });
+  res.json({ url: `/uploads/${req.file.filename}` });
+});
+
+export default router;
