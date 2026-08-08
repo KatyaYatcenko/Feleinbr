@@ -88,7 +88,6 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'X-Title': 'Feleinbr',
       },
       body: JSON.stringify({
         model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite:free',
