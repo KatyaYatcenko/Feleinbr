@@ -43,6 +43,11 @@ export default function App() {
   const activeChar = characters.find((c) => c.id === activeId);
   const { promptEvent, promptInstall } = useInstallPrompt();
 
+  const loadMessages = useCallback(async (characterId) => {
+    const { messages } = await api.getMessages(characterId);
+    return messages;
+  }, []);
+
   function setTheme(updater) {
     setThemeState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
@@ -94,11 +99,11 @@ export default function App() {
       return;
     }
     let cancelled = false;
-    api.getMessages(activeChar.id).then(({ messages }) => {
-      if (!cancelled) setMessages(messages);
+    loadMessages(activeChar.id).then((messages) => {
+      if (!cancelled && messages) setMessages(messages);
     }).catch(console.error);
     return () => { cancelled = true; };
-  }, [activeChar?.id]);
+  }, [activeChar?.id, loadMessages]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -136,12 +141,36 @@ export default function App() {
     setInput('');
     setLoading(true);
     try {
-      const { reply } = await api.sendMessage(activeChar.id, { content, imageUrl });
-      setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
+      await api.sendMessage(activeChar.id, { content, imageUrl });
+      const updated = await loadMessages(activeChar.id);
+      if (updated) setMessages(updated);
+      await loadCharacters();
     } catch (e) {
       setMessages((prev) => [...prev, { role: 'assistant', content: `Помилка: ${e.message}` }]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleDeleteMessage(messageId) {
+    if (!activeChar) return;
+    try {
+      const { messages } = await api.deleteMessage(activeChar.id, messageId);
+      setMessages(messages);
+      await loadCharacters();
+    } catch (e) {
+      console.error('Delete message error:', e);
+    }
+  }
+
+  async function handleRewindMessage(messageId) {
+    if (!activeChar) return;
+    try {
+      const { messages } = await api.rewindMessage(activeChar.id, messageId);
+      setMessages(messages);
+      await loadCharacters();
+    } catch (e) {
+      console.error('Rewind message error:', e);
     }
   }
 
@@ -188,7 +217,8 @@ export default function App() {
           <ListView
             characters={characters}
             buttonsColor={theme.buttonsColor}
-            onOpen={(id) => { setActiveCharacter(id); setView('profile'); }}
+            onOpen={(id) => { setActiveCharacter(id); setView('chat'); }}
+            onProfile={(id) => { setActiveCharacter(id); setView('profile'); }}
             onCreate={() => setView('create')}
             onSettings={() => setView('settings')}
           />
@@ -224,6 +254,9 @@ export default function App() {
               character={activeChar}
               onBack={() => setView('list')}
               onChat={() => setView('chat')}
+              onSave={(updated) => {
+                setCharacters((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+              }}
             />
           )}
 
@@ -241,6 +274,8 @@ export default function App() {
               onSend={handleSend}
               onBack={() => setView('list')}
               onDelete={() => deleteCharacter(activeChar.id)}
+              onDeleteMessage={handleDeleteMessage}
+              onRewindMessage={handleRewindMessage}
               scrollRef={scrollRef}
             />
           )}

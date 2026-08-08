@@ -29,7 +29,7 @@ function ColorRow({ label, value, onChange }) {
           </button>
         ))}
       </div>
-      <div className="flex gap-2">
+      <div className="flex gap-2 mb-3">
         <div className="w-9 h-9 rounded-lg shrink-0" style={{ background: isValidHex(hexInput) ? hexInput : SURFACE, border: `1px solid ${BORDER}` }} />
         <input
           value={hexInput}
@@ -47,6 +47,13 @@ function ColorRow({ label, value, onChange }) {
           OK
         </button>
       </div>
+      <input
+        type="color"
+        value={isValidHex(hexInput) ? hexInput : '#ffffff'}
+        onChange={(e) => { setHexInput(e.target.value); onChange(e.target.value); }}
+        className="w-full h-10 rounded-lg border-none p-0 cursor-pointer"
+        style={{ background: 'transparent' }}
+      />
     </div>
   );
 }

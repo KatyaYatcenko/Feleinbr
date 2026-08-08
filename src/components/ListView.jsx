@@ -9,7 +9,7 @@ const BORDER = 'rgba(255,255,255,0.08)';
 const TEXT = '#ECEAF3';
 const MUTED = '#8B8996';
 
-export default function ListView({ characters, buttonsColor, onOpen, onCreate, onSettings }) {
+export default function ListView({ characters, buttonsColor, onOpen, onProfile, onCreate, onSettings }) {
   return (
     <div className="flex flex-col h-full relative">
       <Header
@@ -36,18 +36,26 @@ export default function ListView({ characters, buttonsColor, onOpen, onCreate, o
         ) : (
           <div className="flex flex-col gap-2.5">
             {characters.map((c) => (
-              <button
+              <div
                 key={c.id}
                 onClick={() => onOpen(c.id)}
-                className="flex items-center gap-3 p-3 rounded-2xl text-left active:opacity-80"
+                className="flex items-center gap-3 p-3 rounded-2xl text-left active:opacity-80 cursor-pointer"
                 style={{ background: SURFACE, border: `1px solid ${BORDER}` }}
               >
                 <AvatarIcon avatarType={c.avatarType} avatarValue={c.avatarValue} size={44} />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <div className="font-semibold text-sm truncate" style={{ fontFamily: 'Unbounded, sans-serif', color: TEXT }}>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onProfile(c.id);
+                      }}
+                      className="font-semibold text-sm truncate text-left"
+                      style={{ fontFamily: 'Unbounded, sans-serif', color: TEXT }}
+                    >
                       {c.name}
-                    </div>
+                    </button>
                     {c.visibility === 'private' ? (
                       <Lock size={11} color={MUTED} />
                     ) : (
@@ -55,10 +63,10 @@ export default function ListView({ characters, buttonsColor, onOpen, onCreate, o
                     )}
                   </div>
                   <div className="text-xs truncate" style={{ color: MUTED }}>
-                    {c.description}
+                    {c.lastMessage || ''}
                   </div>
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { ArrowLeft, Trash2, Send, Image as ImageIcon, X, Lock, Globe } from 'lucide-react';
+import { ArrowLeft, Trash2, Send, Image as ImageIcon, X, Lock, Globe, RotateCcw } from 'lucide-react';
 import { AvatarIcon } from './AvatarPicker';
 import { rgba } from '../utils/colors';
 import { api, API_URL } from '../api/client';
@@ -12,11 +12,35 @@ const MUTED = '#8B8996';
 
 export default function ChatView({
   character, user, buttonsColor, userBubbleColor, characterBubbleColor,
-  messages, loading, input, setInput, onSend, onBack, onDelete, scrollRef,
+  messages, loading, input, setInput, onSend, onBack, onDelete, onDeleteMessage, onRewindMessage, scrollRef,
 }) {
   const fileInputRef = useRef(null);
   const [pendingImage, setPendingImage] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  function renderActionButtons(m) {
+    if (!m.id) return null;
+    return (
+      <div className="absolute top-0 right-0 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <button
+          type="button"
+          onClick={() => onDeleteMessage?.(m.id)}
+          className="w-8 h-8 rounded-full flex items-center justify-center bg-[#1F202B] text-[#ECEAF3] hover:bg-[#2D2F3E]"
+          title="Видалити повідомлення"
+        >
+          <Trash2 size={14} />
+        </button>
+        <button
+          type="button"
+          onClick={() => onRewindMessage?.(m.id)}
+          className="w-8 h-8 rounded-full flex items-center justify-center bg-[#1F202B] text-[#ECEAF3] hover:bg-[#2D2F3E]"
+          title="Перемотати до цього повідомлення"
+        >
+          <RotateCcw size={14} />
+        </button>
+      </div>
+    );
+  }
 
   async function handleAttach(e) {
     const file = e.target.files?.[0];
@@ -75,7 +99,10 @@ export default function ChatView({
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={`flex items-end gap-2 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div
+            key={m.id || i}
+            className={`relative flex items-end gap-2 group ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
             {m.role === 'assistant' && <AvatarIcon avatarType={character.avatarType} avatarValue={character.avatarValue} size={24} />}
             <div
               className="max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden"
@@ -95,6 +122,7 @@ export default function ChatView({
               {m.content && <div className="px-3.5 py-2.5 whitespace-pre-wrap">{m.content}</div>}
             </div>
             {m.role === 'user' && <AvatarIcon avatarType={user.avatarType} avatarValue={user.avatarValue} size={24} />}
+            {renderActionButtons(m)}
           </div>
         ))}
         {loading && (

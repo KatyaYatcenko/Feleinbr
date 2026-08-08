@@ -22,8 +22,8 @@ function buildSystemPrompt(character, user) {
 6. Якщо співрозмовник пише неформально — відповідай так само неформально.`;
 }
 
-function getCharacterOrFail(characterId, userId, res) {
-  const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(characterId);
+async function getCharacterOrFail(characterId, userId, res) {
+  const character = await db.get('SELECT * FROM characters WHERE id = ?', characterId);
   if (!character) {
     res.status(404).json({ error: 'Персонажа не знайдено' });
     return null;
@@ -36,21 +36,23 @@ function getCharacterOrFail(characterId, userId, res) {
 }
 
 // Історія діалогу конкретного користувача з конкретним персонажем
-router.get('/:characterId', requireAuth, (req, res) => {
-  const character = getCharacterOrFail(req.params.characterId, req.userId, res);
+router.get('/:characterId', requireAuth, async (req, res) => {
+  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
   if (!character) return;
 
-  const rows = db
-    .prepare('SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC')
-    .all(character.id, req.userId);
+  const rows = await db.all(
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+    character.id,
+    req.userId
+  );
 
   res.json({
-    messages: rows.map((m) => ({ role: m.role, content: m.content, imageUrl: m.image_url })),
+    messages: rows.map((m) => ({ id: m.id, role: m.role, content: m.content, imageUrl: m.image_url })),
   });
 });
 
 router.post('/:characterId', requireAuth, async (req, res) => {
-  const character = getCharacterOrFail(req.params.characterId, req.userId, res);
+  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
   if (!character) return;
 
   const { content, imageUrl } = req.body;
@@ -58,15 +60,22 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Порожнє повідомлення' });
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
+  const user = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
 
-  db.prepare('INSERT INTO messages (character_id, user_id, role, content, image_url) VALUES (?, ?, ?, ?, ?)').run(
-    character.id, req.userId, 'user', content || '', imageUrl || null
+  await db.run(
+    'INSERT INTO messages (character_id, user_id, role, content, image_url) VALUES (?, ?, ?, ?, ?)',
+    character.id,
+    req.userId,
+    'user',
+    content || '',
+    imageUrl || null
   );
 
-  const history = db
-    .prepare('SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC')
-    .all(character.id, req.userId);
+  const history = await db.all(
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+    character.id,
+    req.userId
+  );
 
   const llmMessages = history.map((m) => ({
     role: m.role,
@@ -79,7 +88,6 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://feleinbr.local',
         'X-Title': 'Фелейнбр',
       },
       body: JSON.stringify({
@@ -97,15 +105,76 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content?.trim() || 'Вибач, не вдалося сформувати відповідь.';
 
-    db.prepare('INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)').run(
-      character.id, req.userId, 'assistant', reply
+    await db.run(
+      'INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)',
+      character.id,
+      req.userId,
+      'assistant',
+      reply
     );
 
     res.json({ reply });
   } catch (e) {
-    console.error(e);
+    console.error('Message send error:', e);
     res.status(500).json({ error: 'Внутрішня помилка сервера' });
   }
+});
+
+router.delete('/:characterId/:messageId', requireAuth, async (req, res) => {
+  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
+  if (!character) return;
+
+  const message = await db.get(
+    'SELECT * FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
+    req.params.messageId,
+    character.id,
+    req.userId
+  );
+
+  if (!message) {
+    return res.status(404).json({ error: 'Повідомлення не знайдено' });
+  }
+
+  await db.run('DELETE FROM messages WHERE id = ?', message.id);
+
+  const rows = await db.all(
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+    character.id,
+    req.userId
+  );
+
+  res.json({ messages: rows.map((m) => ({ id: m.id, role: m.role, content: m.content, imageUrl: m.image_url })) });
+});
+
+router.post('/:characterId/:messageId/rewind', requireAuth, async (req, res) => {
+  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
+  if (!character) return;
+
+  const message = await db.get(
+    'SELECT * FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
+    req.params.messageId,
+    character.id,
+    req.userId
+  );
+
+  if (!message) {
+    return res.status(404).json({ error: 'Повідомлення не знайдено' });
+  }
+
+  await db.run(
+    'DELETE FROM messages WHERE character_id = ? AND user_id = ? AND id > ?',
+    character.id,
+    req.userId,
+    message.id
+  );
+
+  const rows = await db.all(
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+    character.id,
+    req.userId
+  );
+
+  res.json({ messages: rows.map((m) => ({ id: m.id, role: m.role, content: m.content, imageUrl: m.image_url })) });
 });
 
 export default router;
