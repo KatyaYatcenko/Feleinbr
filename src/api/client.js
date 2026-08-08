@@ -1,7 +1,7 @@
 const TOKEN_KEY = 'feleinbr_token';
 
 // Deployed backend URL
-const API_URL = 'https://feleinbr.onrender.com';
+export const API_URL = 'https://feleinbr.onrender.com';
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);

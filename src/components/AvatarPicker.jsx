@@ -3,6 +3,7 @@ import {
   Cat, Dog, Bird, Fish, Ghost, Rabbit, Turtle, Bug,
   Flame, Moon, Sun, Star, Cloud, Sparkles, Crown, Flower2, X,
 } from 'lucide-react';
+import { API_URL } from '../api/client';
 import { AVATAR_GALLERY } from '../data/avatars';
 
 const ICONS = { Cat, Dog, Bird, Fish, Ghost, Rabbit, Turtle, Bug, Flame, Moon, Sun, Star, Cloud, Sparkles, Crown, Flower2 };
@@ -14,7 +15,7 @@ export function AvatarIcon({ avatarType = 'icon', avatarValue = 'sparkles', avat
   if (avatarType === 'photo' && value) {
     return (
       <img
-        src={value}
+        src={value && value.startsWith('/') ? `${API_URL}${value}` : value}
         alt=""
         className="rounded-full object-cover shrink-0"
         style={{ width: size, height: size }}

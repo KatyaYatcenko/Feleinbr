@@ -17,38 +17,61 @@ function toPublicCharacter(c, userId) {
 }
 
 // Список персонажів: усі публічні + власні приватні
-router.get('/', requireAuth, (req, res) => {
-  const rows = db
-    .prepare('SELECT * FROM characters WHERE visibility = ? OR owner_id = ? ORDER BY created_at DESC')
-    .all('public', req.userId);
-  res.json({ characters: rows.map((c) => toPublicCharacter(c, req.userId)) });
+router.get('/', requireAuth, async (req, res) => {
+  try {
+    const rows = await db.all(
+      'SELECT * FROM characters WHERE visibility = ? OR owner_id = ? ORDER BY created_at DESC',
+      'public',
+      req.userId
+    );
+    res.json({ characters: rows.map((c) => toPublicCharacter(c, req.userId)) });
+  } catch (err) {
+    console.error('Get characters error:', err);
+    res.status(500).json({ error: 'Помилка отримання персонажів' });
+  }
 });
 
-router.post('/', requireAuth, (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   const { name, description, avatarType, avatarValue, visibility } = req.body;
   if (!name?.trim() || !description?.trim()) {
     return res.status(400).json({ error: "Потрібні ім'я та опис персонажа" });
   }
   const vis = visibility === 'public' ? 'public' : 'private';
 
-  const info = db
-    .prepare(
-      'INSERT INTO characters (owner_id, name, description, avatar_type, avatar_value, visibility) VALUES (?, ?, ?, ?, ?, ?)'
-    )
-    .run(req.userId, name.trim(), description.trim(), avatarType || 'icon', avatarValue || 'cat', vis);
+  try {
+    const info = await db.run(
+      'INSERT INTO characters (owner_id, name, description, avatar_type, avatar_value, visibility) VALUES (?, ?, ?, ?, ?, ?)',
+      req.userId,
+      name.trim(),
+      description.trim(),
+      avatarType || 'icon',
+      avatarValue || 'cat',
+      vis
+    );
 
-  const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(info.lastInsertRowid);
-  res.json({ character: toPublicCharacter(character, req.userId) });
+    const id = info?.lastID || info?.lastInsertRowid;
+    const character = await db.get('SELECT * FROM characters WHERE id = ?', id);
+    res.json({ character: toPublicCharacter(character, req.userId) });
+  } catch (err) {
+    console.error('Create character error:', err);
+    if (err?.code === 'SQLITE_CONSTRAINT') return res.status(400).json({ error: 'Неправильні дані персонажа' });
+    res.status(500).json({ error: 'Помилка при створенні персонажа' });
+  }
 });
 
-router.delete('/:id', requireAuth, (req, res) => {
-  const character = db.prepare('SELECT * FROM characters WHERE id = ?').get(req.params.id);
-  if (!character) return res.status(404).json({ error: 'Персонажа не знайдено' });
-  if (character.owner_id !== req.userId) return res.status(403).json({ error: 'Це не твій персонаж' });
+router.delete('/:id', requireAuth, async (req, res) => {
+  try {
+    const character = await db.get('SELECT * FROM characters WHERE id = ?', req.params.id);
+    if (!character) return res.status(404).json({ error: 'Персонажа не знайдено' });
+    if (character.owner_id !== req.userId) return res.status(403).json({ error: 'Це не твій персонаж' });
 
-  db.prepare('DELETE FROM messages WHERE character_id = ?').run(character.id);
-  db.prepare('DELETE FROM characters WHERE id = ?').run(character.id);
-  res.json({ ok: true });
+    await db.run('DELETE FROM messages WHERE character_id = ?', character.id);
+    await db.run('DELETE FROM characters WHERE id = ?', character.id);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Delete character error:', err);
+    res.status(500).json({ error: 'Помилка при видаленні персонажа' });
+  }
 });
 
 export default router;
