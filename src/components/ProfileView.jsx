@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ArrowLeft, MessageCircle, Lock, Globe, Pencil, UploadCloud } from 'lucide-react';
 import Header from './Header';
-import { AvatarIcon, AvatarPicker } from './AvatarPicker';
+import AvatarPicker, { AvatarIcon } from './AvatarPicker';
 import { api } from '../api/client';
 
 const SURFACE = '#1D1E26';
