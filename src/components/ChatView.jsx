@@ -68,30 +68,6 @@ export default function ChatView({
         )}
       </div>
 
-      <div className="px-4 py-4">
-        <div className="rounded-3xl border border-white/10 bg-[#1D1E26] p-4 mb-4">
-          <div className="flex items-start gap-3">
-            <div className="w-14 h-14 rounded-full overflow-hidden">
-              <AvatarIcon avatarType={character.avatarType} avatarValue={character.avatarValue} size={56} />
-            </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="font-semibold text-lg truncate" style={{ fontFamily: 'Unbounded, sans-serif', color: TEXT }}>
-                  {character.name}
-                </div>
-                {character.visibility === 'private' ? (
-                  <Lock size={14} color={MUTED} />
-                ) : (
-                  <Globe size={14} color={MUTED} />
-                )}
-              </div>
-              <div className="text-xs leading-5" style={{ color: MUTED }}>
-                {character.description}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2.5">
         {messages.length === 0 && (
           <div className="text-center text-xs py-8" style={{ color: MUTED }}>

@@ -3,6 +3,7 @@ import AuthView from './components/AuthView';
 import ListView from './components/ListView';
 import CreateView from './components/CreateView';
 import ChatView from './components/ChatView';
+import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
 import { api, getToken, setToken } from './api/client';
 import { useInstallPrompt } from './useInstallPrompt';
@@ -167,7 +168,7 @@ export default function App() {
     );
   }
 
-  const rightPaneHasContent = view === 'create' || view === 'settings' || (view === 'chat' && activeChar);
+  const rightPaneHasContent = view === 'create' || view === 'settings' || view === 'profile' || (view === 'chat' && activeChar);
 
   return (
     <div className="w-full h-screen flex justify-center overflow-hidden" style={{ background: BG }}>
@@ -187,7 +188,7 @@ export default function App() {
           <ListView
             characters={characters}
             buttonsColor={theme.buttonsColor}
-            onOpen={(id) => { setActiveCharacter(id); setView('chat'); }}
+            onOpen={(id) => { setActiveCharacter(id); setView('profile'); }}
             onCreate={() => setView('create')}
             onSettings={() => setView('settings')}
           />
@@ -216,6 +217,14 @@ export default function App() {
 
           {view === 'create' && (
             <CreateView buttonsColor={theme.buttonsColor} onBack={() => setView('list')} onCreate={handleCreateCharacter} />
+          )}
+
+          {view === 'profile' && activeChar && (
+            <ProfileView
+              character={activeChar}
+              onBack={() => setView('list')}
+              onChat={() => setView('chat')}
+            />
           )}
 
           {view === 'chat' && activeChar && (
