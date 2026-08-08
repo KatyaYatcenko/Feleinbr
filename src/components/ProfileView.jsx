@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, MessageCircle, Lock, Globe, Pencil2, UploadCloud } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Lock, Globe, Pencil, UploadCloud } from 'lucide-react';
 import Header from './Header';
 import { AvatarIcon, AvatarPicker } from './AvatarPicker';
 import { api } from '../api/client';
@@ -97,7 +97,7 @@ export default function ProfileView({ character, onBack, onChat, onSave }) {
                 className="w-full py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
                 style={{ background: '#24252E', color: TEXT }}
               >
-                <Pencil2 size={16} /> Обрати іконку
+                <Pencil size={16} /> Обрати іконку
               </button>
               <button
                 onClick={() => document.getElementById('profile-avatar-upload')?.click()}
