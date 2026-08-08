@@ -6,9 +6,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // Проксі на локальний бекенд, щоб уникнути CORS під час розробки
-      '/api': 'http://localhost:3001',
-      '/uploads': 'http://localhost:3001',
+      // Проксі на віддалений бекенд (render) замість локального
+      '/api': 'https://feleinbr.onrender.com',
+      '/uploads': 'https://feleinbr.onrender.com',
     },
   },
 });

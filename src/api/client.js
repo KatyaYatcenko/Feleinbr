@@ -1,5 +1,8 @@
 const TOKEN_KEY = 'feleinbr_token';
 
+// Deployed backend URL
+const API_URL = 'https://feleinbr.onrender.com';
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }
@@ -11,7 +14,9 @@ export function setToken(token) {
 
 async function request(path, options = {}) {
   const token = getToken();
-  const res = await fetch(path, {
+  // If a relative path is provided, prefix it with API_URL
+  const url = path.startsWith('http') ? path : `${API_URL}${path}`;
+  const res = await fetch(url, {
     ...options,
     headers: {
       ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),

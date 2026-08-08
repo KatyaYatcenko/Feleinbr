@@ -15,7 +15,14 @@ dotenv.config();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
-app.use(cors());
+// Configure CORS: if CORS_ORIGIN is set in .env, allow only that origin,
+// otherwise allow all origins (useful for local development).
+const corsOrigin = process.env.CORS_ORIGIN;
+if (corsOrigin) {
+  app.use(cors({ origin: corsOrigin }));
+} else {
+  app.use(cors());
+}
 app.use(express.json({ limit: '2mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
