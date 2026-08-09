@@ -81,6 +81,21 @@ export default function App() {
   }, [user, loadCharacters]);
 
   useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const synced = await api.syncPendingMessages();
+      if (synced.length > 0 && activeChar) {
+        try {
+          const updated = await loadMessages(activeChar.id);
+          if (updated) setMessages(updated);
+        } catch (err) {
+          console.error('Failed to refresh messages after sync:', err);
+        }
+      }
+    })();
+  }, [user, activeChar?.id, loadMessages]);
+
+  useEffect(() => {
     if (!user || characters.length === 0) return;
     const savedId = Number(localStorage.getItem(ACTIVE_CHARACTER_KEY));
     const existing = characters.find((c) => c.id === savedId);
@@ -146,7 +161,8 @@ export default function App() {
       if (updated) setMessages(updated);
       await loadCharacters();
     } catch (e) {
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Помилка: ${e.message}` }]);
+      api.queuePendingMessage(activeChar.id, { content, imageUrl });
+      setMessages((prev) => [...prev, { role: 'assistant', content: `Помилка: ${e.message}. Повідомлення збережено локально та буде надіслано після входу.` }]);
     } finally {
       setLoading(false);
     }

@@ -1,10 +1,63 @@
 const TOKEN_KEY = 'feleinbr_token';
+const PENDING_MESSAGES_KEY = 'feleinbr_pending_messages';
 
 // Deployed backend URL
 export const API_URL = 'https://feleinbr.onrender.com';
 
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
+}
+
+function getPendingMessagesData() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_MESSAGES_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function setPendingMessagesData(items) {
+  localStorage.setItem(PENDING_MESSAGES_KEY, JSON.stringify(items));
+}
+
+export function getPendingMessages() {
+  return getPendingMessagesData();
+}
+
+export function queuePendingMessage(characterId, payload) {
+  const pending = getPendingMessagesData();
+  pending.push({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    characterId,
+    content: payload.content || '',
+    imageUrl: payload.imageUrl || null,
+    createdAt: new Date().toISOString(),
+  });
+  setPendingMessagesData(pending);
+}
+
+export async function syncPendingMessages() {
+  const pending = getPendingMessagesData();
+  if (!pending.length) return [];
+
+  const successfullySynced = [];
+  const remaining = [];
+
+  for (const item of pending) {
+    try {
+      await request(`/api/messages/${item.characterId}`, {
+        method: 'POST',
+        body: JSON.stringify({ content: item.content, imageUrl: item.imageUrl }),
+      });
+      successfullySynced.push(item.id);
+    } catch (err) {
+      console.warn('Failed to sync pending message', err);
+      remaining.push(item);
+    }
+  }
+
+  setPendingMessagesData(remaining);
+  return successfullySynced;
 }
 
 export function setToken(token) {
@@ -44,6 +97,8 @@ export const api = {
     request(`/api/messages/${characterId}`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteMessage: (characterId, messageId) => request(`/api/messages/${characterId}/${messageId}`, { method: 'DELETE' }),
   rewindMessage: (characterId, messageId) => request(`/api/messages/${characterId}/${messageId}/rewind`, { method: 'POST' }),
+  queuePendingMessage,
+  syncPendingMessages,
 
   uploadFile: (file) => {
     const form = new FormData();
