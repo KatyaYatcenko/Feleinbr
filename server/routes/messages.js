@@ -77,15 +77,13 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     req.userId
   );
 
-  const llmMessages = history.map((m) => ({
-    role: m.role,
-    content: m.image_url ? `${m.content || ''}\n[користувач надіслав фото]`.trim() : m.content || '',
-  }));
+  const systemPrompt = buildSystemPrompt(character, user);
+  const systemPromptShort = systemPrompt.length > 1200 ? `${systemPrompt.slice(0, 1200)}...` : systemPrompt;
+  const messageText = content || '';
 
   try {
-    const messageText = content || '';
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
       {
         method: 'POST',
         headers: {
@@ -93,6 +91,10 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         },
         body: JSON.stringify({
           contents: [
+            {
+              role: 'system',
+              parts: [{ text: systemPromptShort }],
+            },
             {
               role: 'user',
               parts: [{ text: messageText }],
