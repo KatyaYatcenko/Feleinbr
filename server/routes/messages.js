@@ -1,11 +1,8 @@
 import express from 'express';
 import { db } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { GoogleGenerativeAI, GoogleGenerativeAIFetchError } from '@google/generative-ai';
 
 const router = express.Router();
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const generativeModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const GENDER_LABEL = { male: 'чоловік', female: 'жінка', other: 'людина, стать не уточнена' };
 
@@ -89,12 +86,35 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     }));
 
   try {
-    const result = await generativeModel.generateContent({
-      systemInstruction: fullSystemPrompt,
-      contents: formattedHistory,
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.1-8b-instruct:free',
+        messages: [
+          { role: 'system', content: fullSystemPrompt },
+          ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
+        ],
+      }),
     });
 
-    const reply = result.response?.text?.().trim() || 'Вибач, не вдалося сформувати відповідь.';
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('OpenRouter API error:', response.status, errText);
+      if (response.status === 429) {
+        return res.status(429).json({ error: 'Зачекайте кілька секунд' });
+      }
+      return res.status(502).json({ error: 'Помилка звернення до OpenRouter' });
+    }
+
+    const data = await response.json();
+    const reply =
+      data?.choices?.[0]?.message?.content ||
+      data?.choices?.[0]?.message?.content?.text ||
+      'Вибач, не вдалося сформувати відповідь.';
 
     await db.run(
       'INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)',
@@ -107,13 +127,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     res.json({ reply });
   } catch (e) {
     console.error('Message send error:', e);
-    if (e instanceof GoogleGenerativeAIFetchError && e.status === 429) {
-      return res.status(429).json({ error: 'Зачекайте кілька секунд' });
-    }
-    if (e?.status === 429) {
-      return res.status(429).json({ error: 'Зачекайте кілька секунд' });
-    }
-    res.status(502).json({ error: 'Помилка звернення до моделі' });
+    res.status(502).json({ error: 'Помилка звернення до OpenRouter' });
   }
 });
 
