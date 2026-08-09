@@ -89,11 +89,11 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'stepfun/step-1-flash',
+        model: 'meta-llama/llama-3.1-8b-instruct:free',
         messages: [
           { role: 'system', content: fullSystemPrompt },
           ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
