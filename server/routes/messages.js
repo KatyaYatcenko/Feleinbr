@@ -77,7 +77,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     req.userId
   );
 
-  const fullSystemPrompt = buildSystemPrompt(character, user);
+  const characterPrompt = buildSystemPrompt(character, user);
   const formattedHistory = history
     .reverse()
     .map((msg) => ({
@@ -93,9 +93,9 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
+        model: process.env.OPENROUTER_MODEL || 'google/gemini-flash-1.5-exp:free',
         messages: [
-          { role: 'system', content: fullSystemPrompt },
+          { role: 'system', content: characterPrompt },
           ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
         ],
       }),
