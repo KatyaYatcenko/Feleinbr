@@ -57,8 +57,23 @@ export default function App() {
   }
 
   const loadCharacters = useCallback(async () => {
-    const { characters } = await api.getCharacters();
-    setCharacters(characters);
+    const maxAttempts = 3;
+    let attempt = 0;
+    while (attempt < maxAttempts) {
+      try {
+        const { characters } = await api.getCharacters();
+        setCharacters(characters);
+        return;
+      } catch (err) {
+        attempt += 1;
+        const status = err?.status;
+        if (attempt >= maxAttempts || (status !== 429 && status !== 500)) {
+          console.error('Load characters failed:', err);
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+      }
+    }
   }, []);
 
   // Перевірка токена при завантаженні застосунку

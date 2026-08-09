@@ -78,7 +78,11 @@ async function request(path, options = {}) {
     },
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Помилка запиту (${res.status})`);
+  if (!res.ok) {
+    const error = new Error(data.error || `Помилка запиту (${res.status})`);
+    error.status = res.status;
+    throw error;
+  }
   return data;
 }
 
