@@ -72,14 +72,18 @@ router.post('/:characterId', requireAuth, async (req, res) => {
   );
 
   const history = await db.all(
-    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id DESC LIMIT 10',
     character.id,
     req.userId
   );
 
-  const systemPrompt = buildSystemPrompt(character, user);
-  const systemPromptShort = systemPrompt.length > 1200 ? `${systemPrompt.slice(0, 1200)}...` : systemPrompt;
-  const messageText = content || '';
+  const fullSystemPrompt = buildSystemPrompt(character, user);
+  const formattedHistory = history
+    .reverse()
+    .map((msg) => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      parts: [{ text: msg.content || '' }],
+    }));
 
   try {
     const response = await fetch(
@@ -90,16 +94,10 @@ router.post('/:characterId', requireAuth, async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          contents: [
-            {
-              role: 'system',
-              parts: [{ text: systemPromptShort }],
-            },
-            {
-              role: 'user',
-              parts: [{ text: messageText }],
-            },
-          ],
+          systemInstruction: {
+            parts: [{ text: fullSystemPrompt }],
+          },
+          contents: formattedHistory,
         }),
       }
     );
