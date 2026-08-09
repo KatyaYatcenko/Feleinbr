@@ -12,7 +12,7 @@ const MUTED = '#8B8996';
 
 export default function ChatView({
   character, user, buttonsColor, userBubbleColor, characterBubbleColor,
-  messages, loading, input, setInput, onSend, onBack, onDelete, onDeleteMessage, onRewindMessage, scrollRef,
+  messages, loading, input, setInput, onSend, onBack, onDelete, onClearChat, onDeleteMessage, onRewindMessage, scrollRef,
 }) {
   const fileInputRef = useRef(null);
   const [pendingImage, setPendingImage] = useState(null);
@@ -85,11 +85,22 @@ export default function ChatView({
             <div className="text-xs" style={{ color: MUTED }}>{loading ? 'друкує...' : 'у мережі'}</div>
           </div>
         </div>
-        {character.isOwner && (
-          <button onClick={onDelete} className="p-2 rounded-full active:opacity-60">
-            <Trash2 size={17} color={MUTED} />
+        <div className="flex gap-2">
+          <button
+            onClick={onClearChat}
+            disabled={messages.length === 0}
+            className="p-2 rounded-full active:opacity-60 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Очистити чат"
+            style={{ background: '#24252E' }}
+          >
+            <X size={17} color={MUTED} />
           </button>
-        )}
+          {character.isOwner && (
+            <button onClick={onDelete} className="p-2 rounded-full active:opacity-60">
+              <Trash2 size={17} color={MUTED} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-2.5">

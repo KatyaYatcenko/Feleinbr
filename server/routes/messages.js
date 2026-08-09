@@ -13,6 +13,9 @@ function buildSystemPrompt(character, user) {
 З ким ти спілкуєшся: користувача звати ${user?.username || 'співрозмовник'}, це ${genderLabel}.
 Враховуй цю інформацію природно (напр. звертання, форми дієслів), але не згадуй її напряму без потреби.
 
+Системне правило:
+Спілкуйся ТІЛЬКИ як людина у звичайному месенджері (Telegram/WhatsApp). КАТЕГОРИЧНО ЗАБОРОНЕНО використовувати дужки, описувати дії, емоції чи жест у третій особі (наприклад, (Богдан посміхається), *відповідає* тощо). Відповідай виключно прямим текстом від першої особи, короткими побутовими реченнями, як у реальному чаті.
+
 ПРАВИЛА СПІЛКУВАННЯ:
 1. Ти спілкуєшся як реальна людина в месенджері — коротко, природно, без зайвого пафосу.
 2. НІКОЛИ не використовуй опис дій у зірочках (*посміхається*) чи в дужках (сміється). Тільки чисті репліки, як у звичайному чаті.
@@ -134,6 +137,14 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     console.error('Message send error:', e);
     res.status(502).json({ error: 'Помилка звернення до OpenRouter' });
   }
+});
+
+router.delete('/:characterId', requireAuth, async (req, res) => {
+  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
+  if (!character) return;
+
+  await db.run('DELETE FROM messages WHERE character_id = ? AND user_id = ?', character.id, req.userId);
+  res.json({ ok: true });
 });
 
 router.delete('/:characterId/:messageId', requireAuth, async (req, res) => {

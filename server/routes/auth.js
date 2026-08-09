@@ -80,4 +80,36 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+router.put('/profile', requireAuth, async (req, res) => {
+  const { username, avatarType, avatarValue, gender } = req.body;
+  const trimmedUsername = (username || '').trim();
+
+  if (!trimmedUsername) {
+    return res.status(400).json({ error: 'Потрібно імʼя користувача' });
+  }
+
+  try {
+    const existing = await db.get('SELECT id FROM users WHERE username = ? AND id != ?', trimmedUsername, req.userId);
+    if (existing) return res.status(409).json({ error: 'Це ім’я користувача вже зайняте' });
+
+    await db.run(
+      'UPDATE users SET username = ?, avatar_type = ?, avatar_value = ?, gender = ? WHERE id = ?',
+      trimmedUsername,
+      avatarType || 'icon',
+      avatarValue || 'sparkles',
+      gender || 'other',
+      req.userId
+    );
+
+    const updated = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
+    res.json({ user: toPublicUser(updated) });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    if (err?.code === 'SQLITE_CONSTRAINT') {
+      return res.status(409).json({ error: 'Це ім’я користувача вже зайняте' });
+    }
+    res.status(500).json({ error: 'Помилка оновлення профілю' });
+  }
+});
+
 export default router;

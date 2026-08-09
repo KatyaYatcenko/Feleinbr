@@ -95,8 +95,11 @@ export const api = {
   createCharacter: (payload) => request('/api/characters', { method: 'POST', body: JSON.stringify(payload) }),
   deleteCharacter: (id) => request(`/api/characters/${id}`, { method: 'DELETE' }),
   updateCharacter: (id, payload) => request(`/api/characters/${id}`, { method: 'PATCH', body: JSON.stringify(payload) }),
+  updateCharacterByPut: (id, payload) => request(`/api/characters/${id}`, { method: 'PUT', body: JSON.stringify(payload) }),
 
   getMessages: (characterId) => request(`/api/messages/${characterId}`),
+  deleteMessages: (characterId) => request(`/api/messages/${characterId}`, { method: 'DELETE' }),
+  updateUserProfile: (payload) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(payload) }),
   sendMessage: (characterId, payload) =>
     request(`/api/messages/${characterId}`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteMessage: (characterId, messageId) => request(`/api/messages/${characterId}/${messageId}`, { method: 'DELETE' }),

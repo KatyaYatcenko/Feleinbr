@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, UploadCloud } from 'lucide-react';
 import Header from './Header';
+import AvatarPicker, { AvatarIcon } from './AvatarPicker';
+import { api } from '../api/client';
 import { isValidHex } from '../utils/colors';
 
 const SURFACE = '#1D1E26';
@@ -58,11 +60,159 @@ function ColorRow({ label, value, onChange }) {
   );
 }
 
-export default function SettingsView({ theme, setTheme, onBack, onLogout }) {
+export default function SettingsView({ theme, setTheme, onBack, onLogout, user, onUpdateUser }) {
+  const [username, setUsername] = useState(user?.username || '');
+  const [gender, setGender] = useState(user?.gender || 'other');
+  const [avatarType, setAvatarType] = useState(user?.avatarType || 'icon');
+  const [avatarValue, setAvatarValue] = useState(user?.avatarValue || 'sparkles');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileError, setProfileError] = useState(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleProfileUpload(file) {
+    setUploading(true);
+    try {
+      const { url } = await api.uploadFile(file);
+      setAvatarType('photo');
+      setAvatarValue(url);
+    } catch (err) {
+      console.error(err);
+      setProfileError(err.message || 'Помилка завантаження');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleProfileSave() {
+    if (!username.trim()) {
+      setProfileError('Потрібно ім’я користувача');
+      return;
+    }
+
+    setSavingProfile(true);
+    setProfileError(null);
+    try {
+      const { user: updated } = await api.updateUserProfile({
+        username: username.trim(),
+        gender,
+        avatarType,
+        avatarValue,
+      });
+      onUpdateUser?.(updated);
+      setProfileError('Профіль оновлено');
+    } catch (err) {
+      console.error(err);
+      setProfileError(err.message || 'Помилка оновлення профілю');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
-      <Header title="Оформлення" onBack={onBack} />
+      <Header title="Налаштування" onBack={onBack} />
       <div className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-7">
+        <div className="rounded-3xl border border-white/10 bg-[#1D1E26] p-4 flex flex-col gap-4">
+          <div className="text-xs uppercase tracking-[0.2em]" style={{ color: MUTED }}>Мій профіль</div>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-[#14151B] flex items-center justify-center">
+              {avatarType === 'photo' ? (
+                <img
+                  src={avatarValue?.startsWith('http') ? avatarValue : avatarValue}
+                  onError={(e) => { e.target.src = '/default-avatar.png'; }}
+                  alt="Avatar"
+                  className="rounded-full object-cover w-full h-full"
+                />
+              ) : (
+                <AvatarIcon avatarType={avatarType} avatarValue={avatarValue} size={80} />
+              )}
+            </div>
+            <div className="flex-1 grid gap-3">
+              <div>
+                <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>Ім’я</p>
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full px-4 py-3 rounded-2xl outline-none text-sm"
+                  style={{ background: '#14151B', border: `1px solid ${BORDER}`, color: TEXT }}
+                />
+              </div>
+              <div>
+                <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>Стать</p>
+                <div className="flex gap-2">
+                  {['female', 'male', 'other'].map((option) => (
+                    <button
+                      key={option}
+                      onClick={() => setGender(option)}
+                      className="flex-1 py-3 rounded-2xl text-sm font-semibold"
+                      style={{
+                        background: gender === option ? '#FF5D8F' : '#24252E',
+                        color: gender === option ? '#0E0E12' : TEXT,
+                      }}
+                    >
+                      {option === 'female' ? 'Жіноча' : option === 'male' ? 'Чоловіча' : 'Інша'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#24252E', color: TEXT }}
+            >
+              Обрати іконку
+            </button>
+            <button
+              onClick={() => document.getElementById('settings-avatar-upload')?.click()}
+              disabled={uploading}
+              className="w-full py-3 rounded-xl text-sm font-semibold"
+              style={{ background: '#24252E', color: TEXT }}
+            >
+              <UploadCloud size={16} className="inline-block mr-2" />
+              {uploading ? 'Завантаження...' : 'Завантажити фото'}
+            </button>
+            <input
+              id="settings-avatar-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleProfileUpload(file);
+                e.target.value = '';
+              }}
+            />
+          </div>
+          {pickerOpen && (
+            <AvatarPicker
+              selected={avatarType === 'icon' ? avatarValue : null}
+              onSelect={(value) => {
+                setAvatarType('icon');
+                setAvatarValue(value);
+              }}
+              onUploadPhoto={(file) => handleProfileUpload(file)}
+              onClose={() => setPickerOpen(false)}
+            />
+          )}
+          {profileError && (
+            <div className="text-sm" style={{ color: profileError === 'Профіль оновлено' ? '#8AE586' : '#FF6B6B' }}>
+              {profileError}
+            </div>
+          )}
+          <button
+            onClick={handleProfileSave}
+            disabled={savingProfile}
+            className="w-full py-3 rounded-xl font-semibold text-sm"
+            style={{ background: '#FF5D8F', color: '#0E0E12' }}
+          >
+            {savingProfile ? 'Зберігаю...' : 'Зберегти профіль'}
+          </button>
+        </div>
+
         <ColorRow
           label="Колір кнопок"
           value={theme.buttonsColor}

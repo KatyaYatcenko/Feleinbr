@@ -205,6 +205,22 @@ export default function App() {
     }
   }
 
+  async function handleClearChat() {
+    if (!activeChar) return;
+    const confirmed = window.confirm('Очистити історію чату з цим персонажем? Цю дію неможливо скасувати.');
+    if (!confirmed) return;
+    setLoading(true);
+    try {
+      await api.deleteMessages(activeChar.id);
+      setMessages([]);
+      await loadCharacters();
+    } catch (e) {
+      console.error('Clear chat error:', e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleLogout() {
     setToken(null);
     setUser(null);
@@ -305,6 +321,7 @@ export default function App() {
               onSend={handleSend}
               onBack={() => setView('list')}
               onDelete={() => deleteCharacter(activeChar.id)}
+              onClearChat={handleClearChat}
               onDeleteMessage={handleDeleteMessage}
               onRewindMessage={handleRewindMessage}
               scrollRef={scrollRef}
@@ -312,7 +329,14 @@ export default function App() {
           )}
 
           {view === 'settings' && (
-            <SettingsView theme={theme} setTheme={setTheme} onBack={() => setView('list')} onLogout={handleLogout} />
+            <SettingsView
+              theme={theme}
+              setTheme={setTheme}
+              onBack={() => setView('list')}
+              onLogout={handleLogout}
+              user={user}
+              onUpdateUser={setUser}
+            />
           )}
 
           {!rightPaneHasContent && (
