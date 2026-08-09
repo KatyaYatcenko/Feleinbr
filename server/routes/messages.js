@@ -1,8 +1,11 @@
 import express from 'express';
 import { db } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { GoogleGenerativeAI, GoogleGenerativeAIFetchError } from '@google/generative-ai';
 
 const router = express.Router();
+const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const generativeModel = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const GENDER_LABEL = { male: 'чоловік', female: 'жінка', other: 'людина, стать не уточнена' };
 
@@ -86,30 +89,12 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     }));
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          systemInstruction: {
-            parts: [{ text: fullSystemPrompt }],
-          },
-          contents: formattedHistory,
-        }),
-      }
-    );
+    const result = await generativeModel.generateContent({
+      systemInstruction: fullSystemPrompt,
+      contents: formattedHistory,
+    });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Gemini API error:', errText);
-      return res.status(502).json({ error: 'Помилка звернення до моделі' });
-    }
-
-    const data = await response.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || 'Вибач, не вдалося сформувати відповідь.';
+    const reply = result.response?.text?.().trim() || 'Вибач, не вдалося сформувати відповідь.';
 
     await db.run(
       'INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)',
@@ -122,7 +107,13 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     res.json({ reply });
   } catch (e) {
     console.error('Message send error:', e);
-    res.status(500).json({ error: 'Внутрішня помилка сервера' });
+    if (e instanceof GoogleGenerativeAIFetchError && e.status === 429) {
+      return res.status(429).json({ error: 'Зачекайте кілька секунд' });
+    }
+    if (e?.status === 429) {
+      return res.status(429).json({ error: 'Зачекайте кілька секунд' });
+    }
+    res.status(502).json({ error: 'Помилка звернення до моделі' });
   }
 });
 
