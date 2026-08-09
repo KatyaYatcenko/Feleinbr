@@ -4,8 +4,8 @@ import { requireAuth } from '../middleware/auth.js';
 import { GoogleGenerativeAI, GoogleGenerativeAIFetchError } from '@google/generative-ai';
 
 const router = express.Router();
-const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const generativeModel = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const generativeModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 const GENDER_LABEL = { male: 'чоловік', female: 'жінка', other: 'людина, стать не уточнена' };
 
