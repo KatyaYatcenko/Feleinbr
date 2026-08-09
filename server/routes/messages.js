@@ -89,11 +89,11 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
+        Authorization: `Bearer ${process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.1-8b-instruct:free',
+        model: 'stepfun/step-1-flash',
         messages: [
           { role: 'system', content: fullSystemPrompt },
           ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
@@ -103,7 +103,12 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('OpenRouter API error:', response.status, errText);
+      console.error('OpenRouter API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        body: errText,
+      });
       if (response.status === 429) {
         return res.status(429).json({ error: 'Зачекайте кілька секунд' });
       }
