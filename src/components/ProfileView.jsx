@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { ArrowLeft, MessageCircle, Lock, Globe, Pencil, UploadCloud } from 'lucide-react';
 import Header from './Header';
 import AvatarPicker, { AvatarIcon } from './AvatarPicker';
-import { api } from '../api/client';
+import { api, API_URL } from '../api/client';
 
 const SURFACE = '#1D1E26';
 const BORDER = 'rgba(255,255,255,0.08)';
@@ -66,7 +66,16 @@ export default function ProfileView({ character, onBack, onChat, onSave }) {
         <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-full overflow-hidden">
-              <AvatarIcon avatarType={avatarType} avatarValue={avatarValue} size={80} />
+              {avatarType === 'photo' ? (
+                <img
+                  src={avatarValue?.startsWith('http') ? avatarValue : `${API_URL}${avatarValue}`}
+                  onError={(e) => { e.target.src = '/default-avatar.png'; }}
+                  alt="Avatar"
+                  className="rounded-full object-cover w-full h-full"
+                />
+              ) : (
+                <AvatarIcon avatarType={avatarType} avatarValue={avatarValue} size={80} />
+              )}
             </div>
             <div className="min-w-0">
               <div className="text-xl font-bold truncate" style={{ color: TEXT, fontFamily: 'Unbounded, sans-serif' }}>
