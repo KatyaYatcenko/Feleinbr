@@ -93,7 +93,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.1-8b-instruct:free',
+        model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
         messages: [
           { role: 'system', content: fullSystemPrompt },
           ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
