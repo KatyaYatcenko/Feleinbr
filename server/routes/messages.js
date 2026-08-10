@@ -247,7 +247,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
   try {
     const response = await fetch(
-      'https://openrouter.ai/api/v1/chat/completions',
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}',
       {
         method: 'POST',
 
