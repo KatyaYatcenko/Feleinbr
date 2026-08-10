@@ -242,36 +242,63 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
   const characterPrompt = buildSystemPrompt(character, user);
 
+  // Список усіх доступних AI-сервісів
+  const providers = [
+    {
+      name: 'Groq',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      key: process.env.GROQ_API_KEY,
+      model: 'llama-3.3-70b-versatile',
+    },
+    {
+      name: 'Mistral AI',
+      url: 'https://api.mistral.ai/v1/chat/completions',
+      key: process.env.MISTRAL_API_KEY,
+      model: 'mistral-small-latest', // або 'mistral-medium-latest', 'open-mixtral-8x7b'
+    },
+    {
+      name: 'Gemini (OpenAI-compatible)',
+      url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+      key: process.env.GEMINI_API_KEY,
+      model: 'gemini-2.0-flash',
+    },
+    {
+      name: 'OpenRouter',
+      url: 'https://openrouter.ai/api/v1/chat/completions',
+      key: process.env.OPENROUTER_API_KEY,
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
+    },
+    {
+      name: 'DeepSeek',
+      url: 'https://api.deepseek.com/chat/completions',
+      key: process.env.DEEPSEEK_API_KEY,
+      model: 'deepseek-chat',
+    },
+  ];
 
   const startTime = Date.now();
+  let response = null;
+  let usedProvider = null;
 
-  try {
-    const response = await fetch(
-      'https://api.groq.com/openai/v1/chat/completions',
-      {
+  // Автоматичне переключення між сервісами
+  for (const provider of providers) {
+    if (!provider.key) continue;
+
+    try {
+      const res = await fetch(provider.url, {
         method: 'POST',
-
         headers: {
-          Authorization: `Bearer ${
-            process.env.OPENROUTER_API_KEY ||
-            process.env.GEMINI_API_KEY
-          }`,
+          Authorization: `Bearer ${provider.key}`,
           'Content-Type': 'application/json',
         },
-
         body: JSON.stringify({
-          model:
-            process.env.OPENROUTER_MODEL ||
-            'google/gemini-2.0-flash-exp:free',
-
+          model: provider.model,
           messages: [
             {
               role: 'system',
               content: characterPrompt,
             },
-
             ...formattedHistory,
-
             {
               role: 'user',
               content: currentUserContent.length
@@ -284,36 +311,37 @@ router.post('/:characterId', requireAuth, async (req, res) => {
                   ],
             },
           ],
-
           max_tokens: 250,
         }),
+      });
+
+      if (res.ok) {
+        response = res;
+        usedProvider = provider.name;
+        break;
       }
-    );
 
-    const elapsed = Date.now() - startTime;
-
-    console.log(
-      `OpenRouter відповів за ${elapsed} мс`
-    );
-
-    if (!response.ok) {
-      const errText = await response.text();
-
-      console.error('OpenRouter API error:', {
-        status: response.status,
-        body: errText,
-      });
-
-      return res.status(502).json({
-        error: 'Помилка генерації відповіді',
-      });
+      const errText = await res.text();
+      console.warn(`Провайдер ${provider.name} дав помилку ${res.status}:`, errText);
+    } catch (err) {
+      console.error(`Помилка запиту до ${provider.name}:`, err);
     }
+  }
 
+  const elapsed = Date.now() - startTime;
+
+  if (!response) {
+    console.error(`Усі AI-сервіси повернули помилку або не мають ключів. Затрачено ${elapsed} мс.`);
+    return res.status(502).json({
+      error: 'Усі AI-сервіси наразі недоступні або вичерпано ліміти.',
+    });
+  }
+
+  try {
     const data = await response.json();
 
     console.log(
-      'OpenRouter model:',
-      data?.model || 'невідома'
+      `Відповідь успішно отримано через ${usedProvider} за ${elapsed} мс. Модель: ${data?.model || 'невідома'}`
     );
 
     const rawReply = extractReplyText(
@@ -347,18 +375,14 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       reply,
     });
   } catch (error) {
-    const elapsed = Date.now() - startTime;
-
-    console.error(
-      `Помилка OpenRouter після ${elapsed} мс:`,
-      error
-    );
+    console.error(`Помилка обробки відповіді від ${usedProvider}:`, error);
 
     return res.status(500).json({
-      error: 'Не вдалося отримати відповідь від моделі',
+      error: 'Не вдалося обробити відповідь від моделі',
     });
   }
 });
+
 router.delete('/:characterId/:messageId', requireAuth, async (req, res) => {
   const { characterId, messageId } = req.params;
 
@@ -414,7 +438,6 @@ router.delete('/:characterId/:messageId', requireAuth, async (req, res) => {
   }
 });
 
-
 router.post('/:characterId/:messageId/rewind', requireAuth, async (req, res) => {
   const { characterId, messageId } = req.params;
 
@@ -440,7 +463,6 @@ router.post('/:characterId/:messageId/rewind', requireAuth, async (req, res) => 
       });
     }
 
-    // Видаляє повідомлення і всі повідомлення після нього
     await db.run(
       'DELETE FROM messages WHERE character_id = ? AND user_id = ? AND id >= ?',
       characterId,
@@ -470,6 +492,7 @@ router.post('/:characterId/:messageId/rewind', requireAuth, async (req, res) => 
     });
   }
 });
+
 router.delete('/:characterId', requireAuth, async (req, res) => {
   const character = await getCharacterOrFail(
     req.params.characterId,
