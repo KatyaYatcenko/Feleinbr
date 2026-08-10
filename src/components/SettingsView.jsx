@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Check, UploadCloud } from 'lucide-react';
 import { HexColorInput, HexColorPicker } from 'react-colorful';
-import 'react-colorful/dist/index.css';
 import Header from './Header';
 import AvatarPicker, { AvatarIcon } from './AvatarPicker';
 import { api, API_URL } from '../api/client';
