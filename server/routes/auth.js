@@ -11,6 +11,7 @@ function toPublicUser(u) {
   return {
     id: u.id,
     username: u.username,
+    email: u.email,
     gender: u.gender,
     avatarType: u.avatar_type,
     avatarValue: u.avatar_value,
@@ -131,35 +132,34 @@ router.get('/me', requireAuth, async (req, res) => {
 });
 
 router.put('/profile', requireAuth, async (req, res) => {
-  const { username, avatarType, avatarValue, avatar, gender } = req.body;
-  const trimmedUsername = (username || '').trim();
-
-  if (!trimmedUsername) {
-    return res.status(400).json({ error: 'Потрібно імʼя користувача' });
-  }
-
   try {
-    const existing = await db.get('SELECT id FROM users WHERE username = ? AND id != ?', trimmedUsername, req.userId);
-    if (existing) return res.status(409).json({ error: 'Це ім’я користувача вже зайняте' });
+    const { username, gender, avatarType, avatarValue, email } = req.body;
 
-    const resolvedAvatarValue = avatarValue || avatar || 'sparkles';
     await db.run(
-      'UPDATE users SET username = ?, avatar_type = ?, avatar_value = ?, gender = ? WHERE id = ?',
-      trimmedUsername,
-      avatarType || 'icon',
-      resolvedAvatarValue,
-      gender || 'other',
+      `UPDATE users 
+       SET username = COALESCE(?, username),
+           gender = COALESCE(?, gender),
+           avatar_type = COALESCE(?, avatar_type),
+           avatar_value = COALESCE(?, avatar_value),
+           email = COALESCE(?, email)
+       WHERE id = ?`,
+      username ? username.trim() : null,
+      gender || null,
+      avatarType || null,
+      avatarValue || null,
+      email ? email.trim().toLowerCase() : null,
       req.userId
     );
 
-    const updated = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
-    res.json({ user: toPublicUser(updated) });
+    const updatedUser = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
+
+    return res.json({ user: toPublicUser(updatedUser) });
   } catch (err) {
     console.error('Update profile error:', err);
     if (err?.code === 'SQLITE_CONSTRAINT') {
-      return res.status(409).json({ error: 'Це ім’я користувача вже зайняте' });
+      return res.status(409).json({ error: "Це ім'я користувача або email вже використовується" });
     }
-    res.status(500).json({ error: 'Помилка оновлення профілю' });
+    return res.status(500).json({ error: 'Помилка оновлення профілю' });
   }
 });
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Check, UploadCloud } from 'lucide-react';
 import { HexColorInput, HexColorPicker } from 'react-colorful';
 import Header from './Header';
@@ -17,14 +17,25 @@ const PRESETS = ['#FF5D8F', '#6C7BFF', '#3DDC97', '#FFB84D', '#B98CFF', '#4FD1FF
 function ColorRow({ label, value, onChange }) {
   const [hexInput, setHexInput] = useState(value);
 
+  // Синхронізуємо локальний інпут з зовнішнім значенням
+  useEffect(() => {
+    setHexInput(value);
+  }, [value]);
+
   return (
     <div>
       <p className="text-xs font-medium mb-3" style={{ color: MUTED }}>{label}</p>
+      
+      {/* Пресети */}
       <div className="flex flex-wrap gap-2.5 mb-3">
         {PRESETS.map((p) => (
           <button
             key={p}
-            onClick={() => { onChange(p); setHexInput(p); }}
+            type="button"
+            onClick={() => {
+              onChange(p);
+              setHexInput(p);
+            }}
             className="w-9 h-9 rounded-full flex items-center justify-center active:scale-90 transition-transform"
             style={{ background: p, border: value === p ? '2px solid white' : '2px solid transparent' }}
           >
@@ -32,17 +43,26 @@ function ColorRow({ label, value, onChange }) {
           </button>
         ))}
       </div>
+
+      {/* Ручний ввід HEX */}
       <div className="flex gap-2 mb-3">
-        <div className="w-9 h-9 rounded-lg shrink-0" style={{ background: isValidHex(hexInput) ? hexInput : SURFACE, border: `1px solid ${BORDER}` }} />
+        <div 
+          className="w-9 h-9 rounded-lg shrink-0 transition-colors" 
+          style={{ background: isValidHex(hexInput) ? hexInput : SURFACE, border: `1px solid ${BORDER}` }} 
+        />
         <HexColorInput
           value={hexInput}
-          onChange={setHexInput}
+          onChange={(color) => {
+            setHexInput(color);
+            if (isValidHex(color)) onChange(color);
+          }}
           prefixed
           placeholder="#FF5D8F"
           className="flex-1 px-3 py-2 rounded-lg outline-none text-sm"
           style={{ background: SURFACE, border: `1px solid ${BORDER}`, color: TEXT }}
         />
         <button
+          type="button"
           onClick={() => isValidHex(hexInput) && onChange(hexInput)}
           disabled={!isValidHex(hexInput)}
           className="px-3 rounded-lg text-sm font-semibold disabled:opacity-40"
@@ -51,10 +71,15 @@ function ColorRow({ label, value, onChange }) {
           OK
         </button>
       </div>
+
+      {/* Палітра Color Picker */}
       <div className="rounded-2xl p-2" style={{ background: SURFACE, border: `1px solid ${BORDER}` }}>
         <HexColorPicker
           color={isValidHex(hexInput) ? hexInput : '#ffffff'}
-          onChange={(color) => { setHexInput(color); onChange(color); }}
+          onChange={(color) => {
+            setHexInput(color);
+            onChange(color);
+          }}
         />
       </div>
     </div>
@@ -67,6 +92,7 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
   const [gender, setGender] = useState(user?.gender || 'other');
   const [avatarType, setAvatarType] = useState(user?.avatarType || 'icon');
   const [avatarValue, setAvatarValue] = useState(user?.avatarValue || 'sparkles');
+  
   const [pickerOpen, setPickerOpen] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -75,15 +101,27 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailStatus, setEmailStatus] = useState(null);
 
+  // Синхронізація стейтів, якщо проп user змінився зовні
+  useEffect(() => {
+    if (user) {
+      if (user.username) setUsername(user.username);
+      if (user.email !== undefined) setEmailInput(user.email || '');
+      if (user.gender) setGender(user.gender);
+      if (user.avatarType) setAvatarType(user.avatarType);
+      if (user.avatarValue) setAvatarValue(user.avatarValue);
+    }
+  }, [user]);
+
   async function handleProfileUpload(file) {
     setUploading(true);
+    setProfileError(null);
     try {
       const { url } = await api.uploadFile(file);
       setAvatarType('photo');
       setAvatarValue(url);
     } catch (err) {
       console.error(err);
-      setProfileError(err.message || 'Помилка завантаження');
+      setProfileError(err.message || 'Помилка завантаження фото');
     } finally {
       setUploading(false);
     }
@@ -103,7 +141,9 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
         gender,
         avatarType,
         avatarValue,
+        email: emailInput.trim() || undefined,
       });
+      
       onUpdateUser?.(updated);
       setProfileError('Профіль оновлено');
     } catch (err) {
@@ -122,19 +162,15 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
     setSavingEmail(true);
     setEmailStatus(null);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_URL}/api/user/email`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ email: emailInput.trim() }),
+      const { user: updated } = await api.updateUserProfile({
+        username,
+        gender,
+        avatarType,
+        avatarValue,
+        email: emailInput.trim(),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Помилка оновлення Email');
       
-      onUpdateUser?.({ ...user, email: emailInput.trim() });
+      onUpdateUser?.(updated);
       setEmailStatus('Email успішно збережено!');
     } catch (err) {
       setEmailStatus(err.message || 'Не вдалося зберегти Email');
@@ -146,9 +182,13 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
   return (
     <div className="flex flex-col h-full">
       <Header title="Налаштування" onBack={onBack} />
+      
       <div className="flex-1 overflow-y-auto px-4 py-5 flex flex-col gap-7">
+        
+        {/* Блок профілю */}
         <div className="rounded-3xl border border-white/10 bg-[#1D1E26] p-4 flex flex-col gap-4">
           <div className="text-xs uppercase tracking-[0.2em]" style={{ color: MUTED }}>Мій профіль</div>
+          
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-full overflow-hidden bg-[#14151B] flex items-center justify-center shrink-0">
               {avatarType === 'photo' ? (
@@ -162,6 +202,7 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
                 <AvatarIcon avatarType={avatarType} avatarValue={avatarValue} size={80} />
               )}
             </div>
+            
             <div className="flex-1 grid gap-3">
               <div>
                 <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>Ім’я</p>
@@ -172,14 +213,16 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
                   style={{ background: '#14151B', border: `1px solid ${BORDER}`, color: TEXT }}
                 />
               </div>
+              
               <div>
                 <p className="text-xs font-medium mb-2" style={{ color: MUTED }}>Стать</p>
                 <div className="flex gap-2">
                   {['female', 'male', 'other'].map((option) => (
                     <button
                       key={option}
+                      type="button"
                       onClick={() => setGender(option)}
-                      className="flex-1 py-3 rounded-2xl text-sm font-semibold"
+                      className="flex-1 py-3 rounded-2xl text-sm font-semibold transition-colors"
                       style={{
                         background: gender === option ? '#FF5D8F' : '#24252E',
                         color: gender === option ? '#0E0E12' : TEXT,
@@ -192,18 +235,21 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
               </div>
             </div>
           </div>
+
           <div className="flex flex-col gap-3">
             <button
+              type="button"
               onClick={() => setPickerOpen(true)}
-              className="w-full py-3 rounded-xl text-sm font-semibold"
+              className="w-full py-3 rounded-xl text-sm font-semibold transition-opacity active:opacity-80"
               style={{ background: '#24252E', color: TEXT }}
             >
               Обрати іконку
             </button>
             <button
+              type="button"
               onClick={() => document.getElementById('settings-avatar-upload')?.click()}
               disabled={uploading}
-              className="w-full py-3 rounded-xl text-sm font-semibold"
+              className="w-full py-3 rounded-xl text-sm font-semibold transition-opacity active:opacity-80 disabled:opacity-50"
               style={{ background: '#24252E', color: TEXT }}
             >
               <UploadCloud size={16} className="inline-block mr-2" />
@@ -221,6 +267,7 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
               }}
             />
           </div>
+
           {pickerOpen && (
             <AvatarPicker
               selected={avatarType === 'icon' ? avatarValue : null}
@@ -232,15 +279,18 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
               onClose={() => setPickerOpen(false)}
             />
           )}
+
           {profileError && (
-            <div className="text-sm" style={{ color: profileError === 'Профіль оновлено' ? '#8AE586' : '#FF6B6B' }}>
+            <div className="text-sm font-medium" style={{ color: profileError === 'Профіль оновлено' ? '#8AE586' : '#FF6B6B' }}>
               {profileError}
             </div>
           )}
+
           <button
+            type="button"
             onClick={handleProfileSave}
             disabled={savingProfile}
-            className="w-full py-3 rounded-xl font-semibold text-sm"
+            className="w-full py-3 rounded-xl font-semibold text-sm transition-opacity active:opacity-90 disabled:opacity-50"
             style={{ background: '#FF5D8F', color: '#0E0E12' }}
           >
             {savingProfile ? 'Зберігаю...' : 'Зберегти профіль'}
@@ -263,21 +313,23 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
               style={{ background: '#14151B', border: `1px solid ${BORDER}`, color: TEXT }}
             />
             <button
+              type="button"
               onClick={handleUpdateEmail}
               disabled={savingEmail}
-              className="px-5 py-3 rounded-2xl font-semibold text-sm disabled:opacity-50 shrink-0"
+              className="px-5 py-3 rounded-2xl font-semibold text-sm disabled:opacity-50 shrink-0 transition-opacity"
               style={{ background: '#FF5D8F', color: '#0E0E12' }}
             >
               {savingEmail ? '...' : 'Зберегти'}
             </button>
           </div>
           {emailStatus && (
-            <p className="text-xs" style={{ color: emailStatus.includes('успішно') ? '#8AE586' : '#FF6B6B' }}>
+            <p className="text-xs font-medium" style={{ color: emailStatus.includes('успішно') ? '#8AE586' : '#FF6B6B' }}>
               {emailStatus}
             </p>
           )}
         </div>
 
+        {/* Налаштування кольорів */}
         <ColorRow
           label="Колір кнопок"
           value={theme.buttonsColor}
@@ -294,6 +346,7 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
           onChange={(c) => setTheme((t) => ({ ...t, characterBubbleColor: c }))}
         />
 
+        {/* Попередній перегляд */}
         <div>
           <p className="text-xs font-medium mb-3" style={{ color: MUTED }}>Попередній перегляд</p>
           <div className="flex flex-col gap-2 p-3 rounded-2xl" style={{ background: SURFACE, border: `1px solid ${BORDER}` }}>
@@ -307,16 +360,18 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
                 Все чудово, дякую!
               </div>
             </div>
-            <button className="self-start px-4 py-2 rounded-full text-xs font-semibold mt-1" style={{ background: theme.buttonsColor, color: '#0E0E12' }}>
+            <button type="button" className="self-start px-4 py-2 rounded-full text-xs font-semibold mt-1" style={{ background: theme.buttonsColor, color: '#0E0E12' }}>
               Приклад кнопки
             </button>
           </div>
         </div>
 
+        {/* Кнопка виходу */}
         {onLogout && (
           <button
+            type="button"
             onClick={onLogout}
-            className="w-full py-3 rounded-xl text-sm font-semibold mt-2"
+            className="w-full py-3 rounded-xl text-sm font-semibold mt-2 active:opacity-80 transition-opacity"
             style={{ background: SURFACE, border: `1px solid ${BORDER}`, color: '#FF6B6B' }}
           >
             Вийти з акаунту
