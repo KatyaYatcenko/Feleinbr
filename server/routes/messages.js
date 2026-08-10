@@ -1,5 +1,3 @@
-import fs from 'fs/promises';
-import path from 'path';
 import express from 'express';
 import { db } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -28,48 +26,20 @@ function extractReplyText(content) {
   return '';
 }
 
-async function buildContentParts(text, imageUrl, req) {
+function buildContentParts(text, imageUrl, req) {
   const parts = [];
   if (text?.trim()) {
     parts.push({ type: 'text', text: text.trim() });
   }
 
   if (imageUrl) {
-    if (imageUrl.startsWith('data:')) {
-      parts.push({ type: 'image_url', image_url: { url: imageUrl } });
-    } else if (/^https?:\/\//i.test(imageUrl)) {
-      parts.push({ type: 'image_url', image_url: { url: imageUrl } });
-    } else {
-      const normalized = imageUrl.replace(/^\/+/, '');
-      const candidates = [
-        path.resolve(process.cwd(), normalized),
-        path.resolve(process.cwd(), 'uploads', path.basename(normalized)),
-        path.resolve(process.cwd(), 'server', normalized),
-        path.resolve(process.cwd(), 'server', 'uploads', path.basename(normalized)),
-      ];
-
-      let fileBuffer = null;
-      let resolvedPath = null;
-      for (const candidate of candidates) {
-        try {
-          fileBuffer = await fs.readFile(candidate);
-          resolvedPath = candidate;
-          break;
-        } catch {
-          // try next candidate
-        }
-      }
-
-      if (fileBuffer) {
-        const ext = path.extname(resolvedPath || '').toLowerCase();
-        const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
-        parts.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBuffer.toString('base64')}` } });
-      } else {
-        const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
-        const resolvedUrl = imageUrl.startsWith('/') ? `${baseUrl}${imageUrl}` : `${baseUrl}/${imageUrl}`;
-        parts.push({ type: 'image_url', image_url: { url: resolvedUrl } });
-      }
+    let resolvedUrl = imageUrl;
+    if (!resolvedUrl.startsWith('data:') && !/^https?:\/\//i.test(resolvedUrl)) {
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      resolvedUrl = resolvedUrl.startsWith('/') ? `${baseUrl}${resolvedUrl}` : `${baseUrl}/${resolvedUrl}`;
     }
+
+    parts.push({ type: 'image_url', image_url: { url: resolvedUrl } });
   }
 
   return parts;
@@ -143,10 +113,16 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Порожнє повідомлення' });
   }
 
-  const currentUserContent = await buildContentParts(content || '', imageUrl, req);
-
   const user = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
 
+  // Берем історію попередніх повідомлень з бази ДO збереження нового (ліміт до 20)
+  const rawHistory = await db.all(
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id DESC LIMIT 20',
+    character.id,
+    req.userId
+  );
+
+  // Зберігає нове повідомлення користувача в БД
   await db.run(
     'INSERT INTO messages (character_id, user_id, role, content, image_url) VALUES (?, ?, ?, ?, ?)',
     character.id,
@@ -156,20 +132,19 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     imageUrl || null
   );
 
-  const history = await db.all(
-    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id DESC LIMIT 10',
-    character.id,
-    req.userId
-  );
-
-  const characterPrompt = buildSystemPrompt(character, user);
+  // Формує масив історії для OpenRouter (від старих до нових)
   const formattedHistory = [];
-  for (const msg of history.reverse()) {
+  for (const msg of rawHistory.reverse()) {
+    const parts = await buildContentParts(msg.content || '', msg.image_url, req);
     formattedHistory.push({
       role: msg.role === 'user' ? 'user' : 'assistant',
-      content: await buildContentParts(msg.content || '', msg.image_url, req),
+      content: parts.length ? parts : [{ type: 'text', text: msg.content || '' }],
     });
   }
+
+  // Формуємо нове повідомлення користувача
+  const currentUserContent = await buildContentParts(content || '', imageUrl, req);
+  const characterPrompt = buildSystemPrompt(character, user);
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -179,11 +154,11 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
+        model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
         messages: [
           { role: 'system', content: characterPrompt },
-          ...formattedHistory.map((item) => ({ role: item.role, content: item.content.length ? item.content : [{ type: 'text', text: '' }] })),
-          { role: 'user', content: currentUserContent.length ? currentUserContent : [{ type: 'text', text: '' }] },
+          ...formattedHistory,
+          { role: 'user', content: currentUserContent.length ? currentUserContent : [{ type: 'text', text: content || '' }] },
         ],
       }),
     });
@@ -193,7 +168,6 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       console.error('OpenRouter API error:', {
         status: response.status,
         statusText: response.statusText,
-        url: response.url,
         body: errText,
       });
       if (response.status === 429) {
@@ -206,6 +180,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     const rawReply = extractReplyText(data?.choices?.[0]?.message?.content);
     const reply = sanitizeModelReply(rawReply) || 'Вибач, не вдалося сформувати відповідь.';
 
+    // Зберігаємо відповідь персонажа в БД
     await db.run(
       'INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)',
       character.id,

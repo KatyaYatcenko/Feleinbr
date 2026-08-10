@@ -5,6 +5,12 @@
 body {
   margin: 0;
   font-family: 'Inter', sans-serif;
+  background-color: #121214;
+}
+
+.app-container {
+  height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 ::-webkit-scrollbar { width: 6px; }

@@ -149,20 +149,24 @@ export default function ChatView({
       </div>
 
       <div className="shrink-0" style={{ borderTop: `1px solid ${BORDER}` }}>
-        {pendingImage && (
-          <div className="px-3 pt-3 flex items-center gap-2">
-            <div className="relative">
-              <img src={pendingImage} alt="" className="w-14 h-14 rounded-lg object-cover" />
-              <button
-                onClick={() => setPendingImage(null)}
-                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
-                style={{ background: SURFACE_2, border: `1px solid ${BORDER}` }}
-              >
-                <X size={11} color={MUTED} />
-              </button>
-            </div>
-          </div>
-        )}
+      {pendingImage && (
+  <div className="px-3 pt-3 flex items-center gap-2">
+    <div className="relative">
+      <img 
+        src={pendingImage.startsWith('/') ? `${API_URL}${pendingImage}` : pendingImage} 
+        alt="Preview" 
+        className="w-14 h-14 rounded-lg object-cover" 
+      />
+      <button
+        onClick={() => setPendingImage(null)}
+        className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center"
+        style={{ background: SURFACE_2, border: `1px solid ${BORDER}` }}
+      >
+        <X size={11} color={MUTED} />
+      </button>
+    </div>
+  </div>
+)}
         <div className="px-3 py-3 flex items-center gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
