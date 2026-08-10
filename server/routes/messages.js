@@ -6,9 +6,17 @@ const router = express.Router();
 
 const GENDER_LABEL = { male: 'чоловік', female: 'жінка', other: 'людина, стать не уточнена' };
 
+function getCharacterDescription(character) {
+  const preferred = typeof character?.description === 'string' ? character.description : '';
+  const fallback = typeof character?.systemPrompt === 'string' ? character.systemPrompt : '';
+  const value = preferred.trim() || fallback.trim();
+  return typeof value === 'string' ? value : '';
+}
+
 function buildSystemPrompt(character, user) {
+  const description = getCharacterDescription(character) || 'Опис персонажа відсутній.';
   const genderLabel = GENDER_LABEL[user?.gender] || GENDER_LABEL.other;
-  return `Ти — ${character.name}. Твоя особистість: ${character.description}.
+  return `Ти — ${character?.name || 'персонаж'}. Твоя особистість: ${description}.
 
 З ким ти спілкуєшся: користувача звати ${user?.username || 'співрозмовник'}, це ${genderLabel}.
 Враховуй цю інформацію природно (напр. звертання, форми дієслів), але не згадуй її напряму без потреби.
@@ -17,6 +25,7 @@ function buildSystemPrompt(character, user) {
 Спілкуйся ТІЛЬКИ як людина у звичайному месенджері (Telegram/WhatsApp). КАТЕГОРИЧНО ЗАБОРОНЕНО використовувати дужки, описувати дії, емоції чи жест у третій особі (наприклад, (Богдан посміхається), *відповідає* тощо). Відповідай виключно прямим текстом від першої особи, короткими побутовими реченнями, як у реальному чаті.
 
 ВИМОГА ДО МОВИ: Відповідай ВИКЛЮЧНО тією мовою, якою написаний опис персонажа (system prompt / character description). Якщо опис написаний українською — відповідай тільки українською. Категорично заборонено переходити на інші мови чи використовувати іноземний сленг, якщо він відсутній в описі.
+LANGUAGE RULE: Detect the language of the character description below. Respond ONLY in that language. If the description is in Ukrainian, respond strictly in clean, natural Ukrainian. Do not mix languages or generate random words.
 
 ПРАВИЛА СПІЛКУВАННЯ:
 1. Ти спілкуєшся як реальна людина в месенджері — коротко, природно, без зайвого пафосу.
@@ -98,7 +107,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: process.env.OPENROUTER_MODEL || 'google/gemini-flash-1.5-exp:free',
+        model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
         messages: [
           { role: 'system', content: characterPrompt },
           ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
