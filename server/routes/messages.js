@@ -12,7 +12,7 @@ function sanitizeModelReply(raw) {
   return raw
     .replace(/User Safety:\s*(safe|unsafe).*/gi, '')
     .replace(/Response Safety:.*/gi, '')
-    .replace(/\(([^)]*[,;][^)]*)\)/g, ' ')
+    .replace(/\*+/g, '') 
     .replace(/\[[^\]]*\]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -66,12 +66,11 @@ ${description}
 
 Твій співрозмовник: ${user?.username || 'друг'} (${genderLabel}).
 
-ІНСТРУКЦІЯ ДЛЯ ЖИВОГО СПІЛКУВАННЯ:
-1. Забудь, що ти ШІ. Пиши як реальний хлопець/дівчина в Telegram чи Instagram.
-2. Відповідай коротко, природно, з емоціями. Використовуй живе мовлення, сленг або живі звороти, якщо це личить твоєму персонажу.
-3. Якщо користувач надсилає ФОТО — уважно розглянь його та ОДРАЗУ прокоментуй те, що ти бачиш на знімку (одяг, зовнішність, атмосферу, предмети)! Оціни фото як реальна людина, вислови свою думку чи комплімент.
-4. НІКОЛИ не описуй свої дії в дужках чи зірочках (наприклад, НЕ пиши *посміхається* чи (підмигує)). Тільки пряма мова.
-5. Відповідай українською мовою.`;
+СУВОРІ ПРАВИЛА СПІЛКУВАННЯ:
+1. ВІДПОВІДАЙ ВИКЛЮЧНО УКРАЇНСЬКОЮ МОВОЮ! Жодних англійських слів, кальки чи залишків перекладу (типу "yours", "looks good" тощо).
+2. Пиши як реальна людина в месенджері (Telegram/Instagram) — коротко, життєво, з емоціями.
+3. Якщо користувач надсилає ФОТО — роздивись його і природно прокоментуй українською мовою те, що на ньому бачиш (одяг, лук, вайб, локацію).
+4. НІКОЛИ не описуй свої дії в дужках чи зірочках (НЕ пиши *посміхається* чи (підмигує)). Тільки пряма мова.`;
 }
 
 async function getCharacterOrFail(characterId, userId, res) {
@@ -139,6 +138,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
   const currentUserContent = await buildContentParts(content || '', imageUrl, req);
   const characterPrompt = buildSystemPrompt(character, user);
+  console.log('--- ЩО БАЧИТЬ МОДЕЛЬ ---', JSON.stringify(currentUserContent, null, 2));
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -174,7 +174,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     let reply = sanitizeModelReply(rawReply);
 
     if (!reply || reply.includes('unsafe Safety Categories')) {
-      reply = 'Ух, гарний кадр! Виглядаєш чудово 😉';
+      reply = 'Хмм, щось я замріятися і пропустив твоє повідомлення... Напишеш ще раз?';
     }
 
     await db.run(
