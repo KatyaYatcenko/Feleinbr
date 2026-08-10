@@ -69,7 +69,7 @@ await db.exec(`
 
 
 
-export async function ensurePrivateBohdanForUser(userId) {
+export async function ensurePrivatePetForUser(userId) {
   const secretDataJson = process.env.MY_PRIVATE_BOT; 
   if (!secretDataJson) return;
 

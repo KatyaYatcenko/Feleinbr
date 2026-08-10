@@ -5,7 +5,6 @@ import jwt from 'jsonwebtoken';
 import { requireAuth } from '../middleware/auth.js';
 import { db, ensurePrivatePetForUser } from '../db.js';
 
-
 const router = express.Router();
 
 function toPublicUser(u) {
