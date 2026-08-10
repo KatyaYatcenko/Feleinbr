@@ -359,7 +359,117 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     });
   }
 });
+router.delete('/:characterId/:messageId', requireAuth, async (req, res) => {
+  const { characterId, messageId } = req.params;
 
+  try {
+    const character = await getCharacterOrFail(
+      characterId,
+      req.userId,
+      res
+    );
+
+    if (!character) return;
+
+    const message = await db.get(
+      'SELECT * FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
+      messageId,
+      characterId,
+      req.userId
+    );
+
+    if (!message) {
+      return res.status(404).json({
+        error: 'Повідомлення не знайдено',
+      });
+    }
+
+    await db.run(
+      'DELETE FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
+      messageId,
+      characterId,
+      req.userId
+    );
+
+    const rows = await db.all(
+      'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+      characterId,
+      req.userId
+    );
+
+    res.json({
+      messages: rows.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        imageUrl: m.image_url,
+      })),
+    });
+  } catch (err) {
+    console.error('Delete message error:', err);
+
+    res.status(500).json({
+      error: 'Помилка видалення повідомлення',
+    });
+  }
+});
+
+
+router.post('/:characterId/:messageId/rewind', requireAuth, async (req, res) => {
+  const { characterId, messageId } = req.params;
+
+  try {
+    const character = await getCharacterOrFail(
+      characterId,
+      req.userId,
+      res
+    );
+
+    if (!character) return;
+
+    const message = await db.get(
+      'SELECT * FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
+      messageId,
+      characterId,
+      req.userId
+    );
+
+    if (!message) {
+      return res.status(404).json({
+        error: 'Повідомлення не знайдено',
+      });
+    }
+
+    // Видаляє повідомлення і всі повідомлення після нього
+    await db.run(
+      'DELETE FROM messages WHERE character_id = ? AND user_id = ? AND id >= ?',
+      characterId,
+      req.userId,
+      messageId
+    );
+
+    const rows = await db.all(
+      'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
+      characterId,
+      req.userId
+    );
+
+    res.json({
+      messages: rows.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        imageUrl: m.image_url,
+      })),
+    });
+  } catch (err) {
+    console.error('Rewind message error:', err);
+
+    res.status(500).json({
+      error: 'Помилка перемотування повідомлення',
+    });
+  }
+});
 router.delete('/:characterId', requireAuth, async (req, res) => {
   const character = await getCharacterOrFail(
     req.params.characterId,
