@@ -164,24 +164,61 @@ export default function App() {
     }
   }
 
-  async function handleSend(imageUrl) {
-    if ((!input.trim() && !imageUrl) || !activeChar || loading) return;
-    const content = input.trim();
-    setMessages((prev) => [...prev, { role: 'user', content, imageUrl }]);
-    setInput('');
-    setLoading(true);
-    try {
-      await api.sendMessage(activeChar.id, { content, imageUrl });
-      const updated = await loadMessages(activeChar.id);
-      if (updated) setMessages(updated);
-      await loadCharacters();
-    } catch (e) {
-      api.queuePendingMessage(activeChar.id, { content, imageUrl });
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Помилка: ${e.message}. Повідомлення збережено локально та буде надіслано після входу.` }]);
-    } finally {
-      setLoading(false);
-    }
+ async function handleSend(imageUrl) {
+  if ((!input.trim() && !imageUrl) || !activeChar || loading) return;
+
+  const content = input.trim();
+
+  setMessages((prev) => [
+    ...prev,
+    { role: 'user', content, imageUrl }
+  ]);
+
+  setInput('');
+  setLoading(true);
+
+  const sendStart = Date.now();
+
+  try {
+   const data = await api.sendMessage(activeChar.id, {
+    content,
+    imageUrl
+  });
+
+  console.log(
+    `Весь запит frontend → backend → OpenRouter → frontend: ${
+      Date.now() - sendStart
+    } мс`
+  );
+
+  if (data?.reply) {
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: data.reply
+      }
+    ]);
   }
+  } catch (e) {
+    console.error('Send message error:', e);
+
+    api.queuePendingMessage(activeChar.id, {
+      content,
+      imageUrl
+    });
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        content: `Помилка: ${e.message}. Повідомлення збережено локально.`
+      }
+    ]);
+  } finally {
+    setLoading(false);
+  }
+}
 
   async function handleDeleteMessage(messageId) {
     if (!activeChar) return;

@@ -4,6 +4,7 @@ const PENDING_MESSAGES_KEY = 'feleinbr_pending_messages';
 // Deployed backend URL
 export const API_URL = 'https://feleinbr.onrender.com';
 
+
 export function getToken() {
   return localStorage.getItem(TOKEN_KEY);
 }

@@ -7,3 +7,4 @@ server/.env
 *.log
 server_error.txt
 server_log.txt
+uploads
