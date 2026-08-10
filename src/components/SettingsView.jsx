@@ -63,6 +63,7 @@ function ColorRow({ label, value, onChange }) {
 
 export default function SettingsView({ theme, setTheme, onBack, onLogout, user, onUpdateUser }) {
   const [username, setUsername] = useState(user?.username || '');
+  const [emailInput, setEmailInput] = useState(user?.email || '');
   const [gender, setGender] = useState(user?.gender || 'other');
   const [avatarType, setAvatarType] = useState(user?.avatarType || 'icon');
   const [avatarValue, setAvatarValue] = useState(user?.avatarValue || 'sparkles');
@@ -70,6 +71,9 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState(null);
   const [uploading, setUploading] = useState(false);
+
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
 
   async function handleProfileUpload(file) {
     setUploading(true);
@@ -110,6 +114,35 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
     }
   }
 
+  async function handleUpdateEmail() {
+    if (!emailInput.trim()) {
+      setEmailStatus('Вкажіть пошту');
+      return;
+    }
+    setSavingEmail(true);
+    setEmailStatus(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_URL}/api/user/email`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ email: emailInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Помилка оновлення Email');
+      
+      onUpdateUser?.({ ...user, email: emailInput.trim() });
+      setEmailStatus('Email успішно збережено!');
+    } catch (err) {
+      setEmailStatus(err.message || 'Не вдалося зберегти Email');
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
   return (
     <div className="flex flex-col h-full">
       <Header title="Налаштування" onBack={onBack} />
@@ -117,7 +150,7 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
         <div className="rounded-3xl border border-white/10 bg-[#1D1E26] p-4 flex flex-col gap-4">
           <div className="text-xs uppercase tracking-[0.2em]" style={{ color: MUTED }}>Мій профіль</div>
           <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full overflow-hidden bg-[#14151B] flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-[#14151B] flex items-center justify-center shrink-0">
               {avatarType === 'photo' ? (
                 <img
                   src={avatarValue?.startsWith('http') ? avatarValue : `${API_URL}${avatarValue}`}
@@ -212,6 +245,37 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
           >
             {savingProfile ? 'Зберігаю...' : 'Зберегти профіль'}
           </button>
+        </div>
+
+        {/* Блок для Email */}
+        <div className="rounded-3xl border border-white/10 bg-[#1D1E26] p-4 flex flex-col gap-3">
+          <div className="text-xs uppercase tracking-[0.2em]" style={{ color: MUTED }}>Прив’язати / Змінити Email</div>
+          <p className="text-xs" style={{ color: MUTED }}>
+            Email потрібен для швидкого відновлення доступу, якщо забудеться пароль.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              placeholder="example@gmail.com"
+              className="flex-1 px-4 py-3 rounded-2xl outline-none text-sm"
+              style={{ background: '#14151B', border: `1px solid ${BORDER}`, color: TEXT }}
+            />
+            <button
+              onClick={handleUpdateEmail}
+              disabled={savingEmail}
+              className="px-5 py-3 rounded-2xl font-semibold text-sm disabled:opacity-50 shrink-0"
+              style={{ background: '#FF5D8F', color: '#0E0E12' }}
+            >
+              {savingEmail ? '...' : 'Зберегти'}
+            </button>
+          </div>
+          {emailStatus && (
+            <p className="text-xs" style={{ color: emailStatus.includes('успішно') ? '#8AE586' : '#FF6B6B' }}>
+              {emailStatus}
+            </p>
+          )}
         </div>
 
         <ColorRow
