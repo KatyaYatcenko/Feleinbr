@@ -66,3 +66,39 @@ await db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
+
+
+
+export async function ensurePrivateBohdanForUser(userId) {
+  const secretDataJson = process.env.MY_PRIVATE_BOT; 
+  if (!secretDataJson) return;
+
+  try {
+    const user = await db.get('SELECT email FROM users WHERE id = ?', userId);
+    const botData = JSON.parse(secretDataJson);
+
+    
+    if (user && user.email === botData.ownerEmail) {
+      const existing = await db.get(
+        'SELECT id FROM characters WHERE owner_id = ? AND name = ?',
+        userId,
+        botData.name
+      );
+
+      if (!existing) {
+        await db.run(
+          `INSERT INTO characters (owner_id, name, description, avatar_type, avatar_value, visibility)
+           VALUES (?, ?, ?, ?, ?, 'private')`,
+          userId,
+          botData.name,
+          botData.description,
+          botData.avatarType,
+          botData.avatarValue
+        );
+        console.log('Приватного персонажа відновлено у профілі.');
+      }
+    }
+  } catch (err) {
+    console.error('Помилка відновлення персонажа:', err);
+  }
+}

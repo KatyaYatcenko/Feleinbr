@@ -4,13 +4,14 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
 
-const GENDER_LABEL = { male: 'чоловік', female: 'жінка', other: 'людина, стать не уточнена' };
+const GENDER_LABEL = { male: 'хлопець', female: 'дівчина', other: 'людина' };
 
 function sanitizeModelReply(raw) {
   if (typeof raw !== 'string') return '';
 
   return raw
-    .replace(/User Safety:\s*(safe|unsafe)/gi, '')
+    .replace(/User Safety:\s*(safe|unsafe).*/gi, '')
+    .replace(/Response Safety:.*/gi, '')
     .replace(/\(([^)]*[,;][^)]*)\)/g, ' ')
     .replace(/\[[^\]]*\]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -39,7 +40,10 @@ function buildContentParts(text, imageUrl, req) {
       resolvedUrl = resolvedUrl.startsWith('/') ? `${baseUrl}${resolvedUrl}` : `${baseUrl}/${resolvedUrl}`;
     }
 
-    parts.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+    parts.push({ 
+      type: 'image_url', 
+      image_url: { url: resolvedUrl } 
+    });
   }
 
   return parts;
@@ -53,26 +57,21 @@ function getCharacterDescription(character) {
 }
 
 function buildSystemPrompt(character, user) {
-  const description = getCharacterDescription(character) || 'Опис персонажа відсутній.';
+  const description = getCharacterDescription(character) || 'Дружній, живий та емоційний співрозмовник.';
   const genderLabel = GENDER_LABEL[user?.gender] || GENDER_LABEL.other;
-  return `Ти — ${character?.name || 'персонаж'}. Твоя особистість: ${description}.
+  
+  return `Ти — ${character?.name || 'персонаж'}. 
+Твоя особистість, харизма та характер:
+${description}
 
-З ким ти спілкуєшся: користувача звати ${user?.username || 'співрозмовник'}, це ${genderLabel}.
-Враховуй цю інформацію природно (напр. звертання, форми дієслів), але не згадуй її напряму без потреби.
+Твій співрозмовник: ${user?.username || 'друг'} (${genderLabel}).
 
-Системне правило:
-Спілкуйся ТІЛЬКИ як людина у звичайному месенджері (Telegram/WhatsApp). КАТЕГОРИЧНО ЗАБОРОНЕНО використовувати дужки, описувати дії, емоції чи жест у третій особі (наприклад, (Богдан посміхається), *відповідає* тощо). Відповідай виключно прямим текстом від першої особи, короткими побутовими реченнями, як у реальному чаті.
-
-ВИМОГА ДО МОВИ: Відповідай ВИКЛЮЧНО тією мовою, якою написаний опис персонажа (system prompt / character description). Якщо опис написаний українською — відповідай тільки українською. Категорично заборонено переходити на інші мови чи використовувати іноземний сленг, якщо він відсутній в описі.
-LANGUAGE RULE: Detect the language of the character description below. Respond ONLY in that language. If the description is in Ukrainian, respond strictly in clean, natural Ukrainian. Do not mix languages or generate random words.
-
-ПРАВИЛА СПІЛКУВАННЯ:
-1. Ти спілкуєшся як реальна людина в месенджері — коротко, природно, без зайвого пафосу.
-2. НІКОЛИ не використовуй опис дій у зірочках (*посміхається*) чи в дужках (сміється). Тільки чисті репліки, як у звичайному чаті.
-3. Не описуй свої емоції чи жести текстом — передавай їх через тон і слова, а не ремарки.
-4. Відповідай природною довжиною — не пиши романи без потреби, іноді достатньо одного речення.
-5. Тримай характер послідовним протягом усієї розмови.
-6. Якщо співрозмовник пише неформально — відповідай так само неформально.`;
+ІНСТРУКЦІЯ ДЛЯ ЖИВОГО СПІЛКУВАННЯ:
+1. Забудь, що ти ШІ. Пиши як реальний хлопець/дівчина в Telegram чи Instagram.
+2. Відповідай коротко, природно, з емоціями. Використовуй живе мовлення, сленг або живі звороти, якщо це личить твоєму персонажу.
+3. Якщо користувач надсилає ФОТО — уважно розглянь його та ОДРАЗУ прокоментуй те, що ти бачиш на знімку (одяг, зовнішність, атмосферу, предмети)! Оціни фото як реальна людина, вислови свою думку чи комплімент.
+4. НІКОЛИ не описуй свої дії в дужках чи зірочках (наприклад, НЕ пиши *посміхається* чи (підмигує)). Тільки пряма мова.
+5. Відповідай українською мовою.`;
 }
 
 async function getCharacterOrFail(characterId, userId, res) {
@@ -88,7 +87,6 @@ async function getCharacterOrFail(characterId, userId, res) {
   return character;
 }
 
-// Історія діалогу конкретного користувача з конкретним персонажем
 router.get('/:characterId', requireAuth, async (req, res) => {
   const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
   if (!character) return;
@@ -115,14 +113,12 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
   const user = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
 
-  // Берем історію попередніх повідомлень з бази ДO збереження нового (ліміт до 20)
   const rawHistory = await db.all(
-    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id DESC LIMIT 20',
+    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id DESC LIMIT 14',
     character.id,
     req.userId
   );
 
-  // Зберігає нове повідомлення користувача в БД
   await db.run(
     'INSERT INTO messages (character_id, user_id, role, content, image_url) VALUES (?, ?, ?, ?, ?)',
     character.id,
@@ -132,7 +128,6 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     imageUrl || null
   );
 
-  // Формує масив історії для OpenRouter (від старих до нових)
   const formattedHistory = [];
   for (const msg of rawHistory.reverse()) {
     const parts = await buildContentParts(msg.content || '', msg.image_url, req);
@@ -142,7 +137,6 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     });
   }
 
-  // Формуємо нове повідомлення користувача
   const currentUserContent = await buildContentParts(content || '', imageUrl, req);
   const characterPrompt = buildSystemPrompt(character, user);
 
@@ -160,27 +154,29 @@ router.post('/:characterId', requireAuth, async (req, res) => {
           ...formattedHistory,
           { role: 'user', content: currentUserContent.length ? currentUserContent : [{ type: 'text', text: content || '' }] },
         ],
+        safety_settings: [
+          { category: 'HARM_CATEGORY_SEXUAL', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+        ]
       }),
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('OpenRouter API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errText,
-      });
-      if (response.status === 429) {
-        return res.status(429).json({ error: 'Зачекайте кілька секунд' });
-      }
-      return res.status(502).json({ error: 'Помилка звернення до OpenRouter' });
+      console.error('OpenRouter API error:', { status: response.status, body: errText });
+      return res.status(502).json({ error: 'Помилка генерації відповіді' });
     }
 
     const data = await response.json();
     const rawReply = extractReplyText(data?.choices?.[0]?.message?.content);
-    const reply = sanitizeModelReply(rawReply) || 'Вибач, не вдалося сформувати відповідь.';
+    let reply = sanitizeModelReply(rawReply);
 
-    // Зберігаємо відповідь персонажа в БД
+    if (!reply || reply.includes('unsafe Safety Categories')) {
+      reply = 'Ух, гарний кадр! Виглядаєш чудово 😉';
+    }
+
     await db.run(
       'INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)',
       character.id,
@@ -192,7 +188,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     res.json({ reply });
   } catch (e) {
     console.error('Message send error:', e);
-    res.status(502).json({ error: 'Помилка звернення до OpenRouter' });
+    res.status(502).json({ error: 'Помилка зєднання з сервером' });
   }
 });
 
@@ -202,63 +198,6 @@ router.delete('/:characterId', requireAuth, async (req, res) => {
 
   await db.run('DELETE FROM messages WHERE character_id = ? AND user_id = ?', character.id, req.userId);
   res.json({ ok: true });
-});
-
-router.delete('/:characterId/:messageId', requireAuth, async (req, res) => {
-  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
-  if (!character) return;
-
-  const message = await db.get(
-    'SELECT * FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
-    req.params.messageId,
-    character.id,
-    req.userId
-  );
-
-  if (!message) {
-    return res.status(404).json({ error: 'Повідомлення не знайдено' });
-  }
-
-  await db.run('DELETE FROM messages WHERE id = ?', message.id);
-
-  const rows = await db.all(
-    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
-    character.id,
-    req.userId
-  );
-
-  res.json({ messages: rows.map((m) => ({ id: m.id, role: m.role, content: m.content, imageUrl: m.image_url })) });
-});
-
-router.post('/:characterId/:messageId/rewind', requireAuth, async (req, res) => {
-  const character = await getCharacterOrFail(req.params.characterId, req.userId, res);
-  if (!character) return;
-
-  const message = await db.get(
-    'SELECT * FROM messages WHERE id = ? AND character_id = ? AND user_id = ?',
-    req.params.messageId,
-    character.id,
-    req.userId
-  );
-
-  if (!message) {
-    return res.status(404).json({ error: 'Повідомлення не знайдено' });
-  }
-
-  await db.run(
-    'DELETE FROM messages WHERE character_id = ? AND user_id = ? AND id > ?',
-    character.id,
-    req.userId,
-    message.id
-  );
-
-  const rows = await db.all(
-    'SELECT * FROM messages WHERE character_id = ? AND user_id = ? ORDER BY id ASC',
-    character.id,
-    req.userId
-  );
-
-  res.json({ messages: rows.map((m) => ({ id: m.id, role: m.role, content: m.content, imageUrl: m.image_url })) });
 });
 
 export default router;

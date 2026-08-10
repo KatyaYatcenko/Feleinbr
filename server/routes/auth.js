@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { db } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
+import { db, ensurePrivatePetForUser } from '../db.js';
 
 const router = express.Router();
 
@@ -91,7 +92,7 @@ router.post('/register', async (req, res) => {
       console.error('Registration error: created user not found', info.lastID);
       return res.status(500).json({ error: 'Не вдалося створити користувача' });
     }
-
+    await ensurePrivatePetForUser(user.id);
     res.json({ token: makeToken(user.id), user: toPublicUser(user) });
   } catch (err) {
     console.error('Registration error:', err);
@@ -111,6 +112,7 @@ router.post('/login', async (req, res) => {
     const ok = await bcrypt.compare(password || '', user.password_hash);
     if (!ok) return res.status(401).json({ error: "Невірне ім'я користувача або пароль" });
 
+    await ensurePrivatePetForUser(user.id);
     res.json({ token: makeToken(user.id), user: toPublicUser(user) });
   } catch (err) {
     console.error('Login error:', err);
