@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Check, UploadCloud } from 'lucide-react';
+import { HexColorInput, HexColorPicker } from 'react-colorful';
+import 'react-colorful/dist/index.css';
 import Header from './Header';
 import AvatarPicker, { AvatarIcon } from './AvatarPicker';
-import { api } from '../api/client';
+import { api, API_URL } from '../api/client';
 import { isValidHex } from '../utils/colors';
 
 const SURFACE = '#1D1E26';
@@ -33,9 +35,10 @@ function ColorRow({ label, value, onChange }) {
       </div>
       <div className="flex gap-2 mb-3">
         <div className="w-9 h-9 rounded-lg shrink-0" style={{ background: isValidHex(hexInput) ? hexInput : SURFACE, border: `1px solid ${BORDER}` }} />
-        <input
+        <HexColorInput
           value={hexInput}
-          onChange={(e) => setHexInput(e.target.value)}
+          onChange={setHexInput}
+          prefixed
           placeholder="#FF5D8F"
           className="flex-1 px-3 py-2 rounded-lg outline-none text-sm"
           style={{ background: SURFACE, border: `1px solid ${BORDER}`, color: TEXT }}
@@ -49,13 +52,12 @@ function ColorRow({ label, value, onChange }) {
           OK
         </button>
       </div>
-      <input
-        type="color"
-        value={isValidHex(hexInput) ? hexInput : '#ffffff'}
-        onChange={(e) => { setHexInput(e.target.value); onChange(e.target.value); }}
-        className="w-full h-10 rounded-lg border-none p-0 cursor-pointer"
-        style={{ background: 'transparent' }}
-      />
+      <div className="rounded-2xl p-2" style={{ background: SURFACE, border: `1px solid ${BORDER}` }}>
+        <HexColorPicker
+          color={isValidHex(hexInput) ? hexInput : '#ffffff'}
+          onChange={(color) => { setHexInput(color); onChange(color); }}
+        />
+      </div>
     </div>
   );
 }
@@ -119,7 +121,7 @@ export default function SettingsView({ theme, setTheme, onBack, onLogout, user, 
             <div className="w-20 h-20 rounded-full overflow-hidden bg-[#14151B] flex items-center justify-center">
               {avatarType === 'photo' ? (
                 <img
-                  src={avatarValue?.startsWith('http') ? avatarValue : avatarValue}
+                  src={avatarValue?.startsWith('http') ? avatarValue : `${API_URL}${avatarValue}`}
                   onError={(e) => { e.target.src = '/default-avatar.png'; }}
                   alt="Avatar"
                   className="rounded-full object-cover w-full h-full"

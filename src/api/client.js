@@ -100,6 +100,8 @@ export const api = {
   getMessages: (characterId) => request(`/api/messages/${characterId}`),
   deleteMessages: (characterId) => request(`/api/messages/${characterId}`, { method: 'DELETE' }),
   updateUserProfile: (payload) => request('/api/auth/profile', { method: 'PUT', body: JSON.stringify(payload) }),
+  forgotPassword: (payload) => request('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify(payload) }),
+  resetPassword: (payload) => request('/api/auth/reset-password', { method: 'POST', body: JSON.stringify(payload) }),
   sendMessage: (characterId, payload) =>
     request(`/api/messages/${characterId}`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteMessage: (characterId, messageId) => request(`/api/messages/${characterId}/${messageId}`, { method: 'DELETE' }),

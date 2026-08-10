@@ -12,14 +12,33 @@ export const db = await open({
 
 await db.exec('PRAGMA foreign_keys = ON');
 
+const userTableInfo = await db.all('PRAGMA table_info(users)');
+const existingColumns = new Set(userTableInfo.map((column) => column.name));
+
+if (userTableInfo.length > 0) {
+  for (const [name, definition] of [
+    ['email', 'TEXT'],
+    ['reset_code', 'TEXT'],
+    ['reset_code_expires_at', 'TEXT'],
+  ]) {
+    if (!existingColumns.has(name)) {
+      await db.exec(`ALTER TABLE users ADD COLUMN ${name} ${definition}`);
+      existingColumns.add(name);
+    }
+  }
+}
+
 await db.exec(`
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT NOT NULL UNIQUE,
+    email TEXT,
     gender TEXT NOT NULL,
     avatar_type TEXT NOT NULL,
     avatar_value TEXT NOT NULL,
     password_hash TEXT NOT NULL,
+    reset_code TEXT,
+    reset_code_expires_at TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
   );
 

@@ -1,3 +1,5 @@
+import fs from 'fs/promises';
+import path from 'path';
 import express from 'express';
 import { db } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -5,6 +7,73 @@ import { requireAuth } from '../middleware/auth.js';
 const router = express.Router();
 
 const GENDER_LABEL = { male: 'чоловік', female: 'жінка', other: 'людина, стать не уточнена' };
+
+function sanitizeModelReply(raw) {
+  if (typeof raw !== 'string') return '';
+
+  return raw
+    .replace(/User Safety:\s*(safe|unsafe)/gi, '')
+    .replace(/\(([^)]*[,;][^)]*)\)/g, ' ')
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractReplyText(content) {
+  if (Array.isArray(content)) {
+    return content.map((part) => part?.text || part?.content || '').join('\n').trim();
+  }
+  if (typeof content === 'string') return content;
+  if (content?.text) return content.text;
+  return '';
+}
+
+async function buildContentParts(text, imageUrl, req) {
+  const parts = [];
+  if (text?.trim()) {
+    parts.push({ type: 'text', text: text.trim() });
+  }
+
+  if (imageUrl) {
+    if (imageUrl.startsWith('data:')) {
+      parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+    } else if (/^https?:\/\//i.test(imageUrl)) {
+      parts.push({ type: 'image_url', image_url: { url: imageUrl } });
+    } else {
+      const normalized = imageUrl.replace(/^\/+/, '');
+      const candidates = [
+        path.resolve(process.cwd(), normalized),
+        path.resolve(process.cwd(), 'uploads', path.basename(normalized)),
+        path.resolve(process.cwd(), 'server', normalized),
+        path.resolve(process.cwd(), 'server', 'uploads', path.basename(normalized)),
+      ];
+
+      let fileBuffer = null;
+      let resolvedPath = null;
+      for (const candidate of candidates) {
+        try {
+          fileBuffer = await fs.readFile(candidate);
+          resolvedPath = candidate;
+          break;
+        } catch {
+          // try next candidate
+        }
+      }
+
+      if (fileBuffer) {
+        const ext = path.extname(resolvedPath || '').toLowerCase();
+        const mimeType = ext === '.png' ? 'image/png' : ext === '.webp' ? 'image/webp' : ext === '.gif' ? 'image/gif' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+        parts.push({ type: 'image_url', image_url: { url: `data:${mimeType};base64,${fileBuffer.toString('base64')}` } });
+      } else {
+        const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+        const resolvedUrl = imageUrl.startsWith('/') ? `${baseUrl}${imageUrl}` : `${baseUrl}/${imageUrl}`;
+        parts.push({ type: 'image_url', image_url: { url: resolvedUrl } });
+      }
+    }
+  }
+
+  return parts;
+}
 
 function getCharacterDescription(character) {
   const preferred = typeof character?.description === 'string' ? character.description : '';
@@ -74,6 +143,8 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Порожнє повідомлення' });
   }
 
+  const currentUserContent = await buildContentParts(content || '', imageUrl, req);
+
   const user = await db.get('SELECT * FROM users WHERE id = ?', req.userId);
 
   await db.run(
@@ -92,12 +163,13 @@ router.post('/:characterId', requireAuth, async (req, res) => {
   );
 
   const characterPrompt = buildSystemPrompt(character, user);
-  const formattedHistory = history
-    .reverse()
-    .map((msg) => ({
+  const formattedHistory = [];
+  for (const msg of history.reverse()) {
+    formattedHistory.push({
       role: msg.role === 'user' ? 'user' : 'assistant',
-      parts: [{ text: msg.content || '' }],
-    }));
+      content: await buildContentParts(msg.content || '', msg.image_url, req),
+    });
+  }
 
   try {
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -110,7 +182,8 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-lite-preview-02-05:free',
         messages: [
           { role: 'system', content: characterPrompt },
-          ...formattedHistory.map((item) => ({ role: item.role, content: item.parts[0].text })),
+          ...formattedHistory.map((item) => ({ role: item.role, content: item.content.length ? item.content : [{ type: 'text', text: '' }] })),
+          { role: 'user', content: currentUserContent.length ? currentUserContent : [{ type: 'text', text: '' }] },
         ],
       }),
     });
@@ -130,10 +203,8 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     }
 
     const data = await response.json();
-    const reply =
-      data?.choices?.[0]?.message?.content ||
-      data?.choices?.[0]?.message?.content?.text ||
-      'Вибач, не вдалося сформувати відповідь.';
+    const rawReply = extractReplyText(data?.choices?.[0]?.message?.content);
+    const reply = sanitizeModelReply(rawReply) || 'Вибач, не вдалося сформувати відповідь.';
 
     await db.run(
       'INSERT INTO messages (character_id, user_id, role, content) VALUES (?, ?, ?, ?)',
