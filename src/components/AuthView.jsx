@@ -27,7 +27,7 @@ export default function AuthView({ accent, onAuthed }) {
   const [loading, setLoading] = useState(false);
 
   // Стан для скидання пароля
-  const [resetStep, setResetStep] = useState(1); // 1 - запит коду, 2 - новий пароль
+  const [resetStep, setResetStep] = useState(1);
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
 
@@ -95,7 +95,7 @@ export default function AuthView({ accent, onAuthed }) {
       const payload =
         mode === 'register'
           ? { username: username.trim(), password, email: email.trim(), gender, avatarType, avatarValue }
-          : { username: username.trim(), password };
+          : { username: username.trim(), password }; // При 'login' email не обов'язковий для сервера
       const data = await api[mode](payload);
       setToken(data.token);
       onAuthed(data.user);
@@ -144,19 +144,20 @@ export default function AuthView({ accent, onAuthed }) {
               />
             </div>
 
-            {mode === 'register' && (
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-medium" style={{ color: MUTED }}>Email (для відновлення доступу)</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="example@gmail.com"
-                  className="px-4 py-3 rounded-xl outline-none text-sm"
-                  style={{ background: SURFACE, border: `1px solid ${BORDER}`, color: TEXT }}
-                />
-              </div>
-            )}
+            {/* Поле Email відображається і при реєстрації, і при вході (необов'язкове для входу) */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-medium" style={{ color: MUTED }}>
+                Email {mode === 'login' ? '(необов\'язково)' : '(для відновлення)'}
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="example@gmail.com"
+                className="px-4 py-3 rounded-xl outline-none text-sm"
+                style={{ background: SURFACE, border: `1px solid ${BORDER}`, color: TEXT }}
+              />
+            </div>
 
             <div className="flex flex-col gap-2">
               <div className="flex justify-between items-center">
