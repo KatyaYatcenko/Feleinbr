@@ -1,0 +1,10 @@
+[33mcommit 2df663a79fa4ae396f715facb5a55f7597bd8108[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m
+Author: KatyaYatcenko <katiacenko@gmail.com>
+Date:   Tue Aug 11 18:26:59 2026 +0300
+
+    Fix mobile bottom navigation
+
+ src/App.jsx                  | 52 [32m+++++++++++++++[m[31m-----------------[m
+ src/components/BottomNav.jsx | 70 [32m+++++++++++++++++++++++++[m[31m-------------------[m
+ src/components/ListView.jsx  | 34 [32m++++++++++++++++++[m[31m---[m
+ 3 files changed, 94 insertions(+), 62 deletions(-)

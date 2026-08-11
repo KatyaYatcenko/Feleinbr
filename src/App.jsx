@@ -409,7 +409,7 @@ export default function App() {
   return (
     <>
       <div
-        className="w-full h-screen flex justify-center overflow-hidden"
+        className="w-full h-[100dvh] flex justify-center overflow-hidden"
         style={{ background: BG }}
       >
         <div
