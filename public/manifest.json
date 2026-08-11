@@ -3,19 +3,23 @@
   "short_name": "Фелейнбр",
   "description": "Чат з персонажами на основі штучного інтелекту.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#14151B",
-  "theme_color": "#14151Bf",
+  "theme_color": "#14151B",
+  "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "/icon-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
-      "src": "/icon.svg",
+      "src": "/icon-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml"
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
