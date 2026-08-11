@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageCircle, Lock, Globe } from 'lucide-react';
+import { Plus, Settings, MessageCircle, Lock, Globe } from 'lucide-react';
 import Header from './Header';
 import { AvatarIcon } from './AvatarPicker';
 import { rgba } from '../utils/colors';
@@ -14,12 +14,25 @@ export default function ListView({
   buttonsColor,
   onOpen,
   onProfile,
+  onCreate,
+  onSettings,
 }) {
   return (
-    <div className="flex flex-col h-full">
-      <Header title="Мої персонажі" />
+   <div className="flex flex-col flex-1 min-h-0 relative">
+      <Header
+        title="Мої персонажі"
+        right={
+          <button
+            onClick={onSettings}
+            className="p-2 rounded-full active:opacity-60"
+            style={{ background: SURFACE }}
+          >
+            <Settings size={18} color={MUTED} />
+          </button>
+        }
+      />
 
-      <div className="flex-1 overflow-y-auto px-4 py-4">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-4 pb-24">
         {characters.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center gap-3 px-6">
             <div
@@ -111,6 +124,19 @@ export default function ListView({
           </div>
         )}
       </div>
+
+      {/* Кнопка створення — тільки desktop */}
+      <button
+        onClick={onCreate}
+        className="hidden md:flex absolute bottom-6 right-5 w-14 h-14 rounded-full items-center justify-center shadow-lg active:scale-95 transition-transform"
+        style={{ background: buttonsColor }}
+      >
+        <Plus
+          size={26}
+          color="#0E0E12"
+          strokeWidth={2.5}
+        />
+      </button>
     </div>
   );
 }

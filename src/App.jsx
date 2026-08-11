@@ -424,17 +424,16 @@ export default function App() {
 
           {/* ЛІВА ЧАСТИНА */}
           <div
-            className={`${
-              view === 'list'
-                ? 'flex'
-                : 'hidden'
-            } md:flex flex-col w-full md:w-[340px] md:shrink-0`}
-            style={{
-              background: BG,
-              borderRight:
-                '1px solid rgba(255,255,255,0.08)',
-            }}
-          >
+  className={`${
+    view === 'list'
+      ? 'flex'
+      : 'hidden'
+  } md:flex flex-col w-full md:w-[340px] md:shrink-0 relative`}
+  style={{
+    background: BG,
+    borderRight: '1px solid rgba(255,255,255,0.08)',
+  }}
+>
 
             {/* Логотип — тільки десктоп */}
             <div className="hidden md:block px-4 pt-4">
@@ -450,23 +449,20 @@ export default function App() {
               </span>
             </div>
 
-            {/* Список персонажів */}
-            <div className="flex-1 min-h-0">
-              <ListView
-                characters={characters}
-                buttonsColor={
-                  theme.buttonsColor
-                }
-                onOpen={(id) => {
-                  setActiveCharacter(id);
-                  setView('chat');
-                }}
-                onProfile={(id) => {
-                  setActiveCharacter(id);
-                  setView('profile');
-                }}
-              />
-            </div>
+<ListView
+  characters={characters}
+  buttonsColor={theme.buttonsColor}
+  onOpen={(id) => {
+    setActiveCharacter(id);
+    setView('chat');
+  }}
+  onProfile={(id) => {
+    setActiveCharacter(id);
+    setView('profile');
+  }}
+  onCreate={() => setView('create')}
+  onSettings={() => setView('settings')}
+/>
 
             {/* BottomNav — ТІЛЬКИ МОБІЛЬНА ВЕРСІЯ */}
             <BottomNav
