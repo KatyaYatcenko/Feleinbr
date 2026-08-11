@@ -5,6 +5,7 @@ import CreateView from './components/CreateView';
 import ChatView from './components/ChatView';
 import ProfileView from './components/ProfileView';
 import SettingsView from './components/SettingsView';
+import BottomNav from './components/BottomNav';
 import { api, getToken, setToken } from './api/client';
 import { useInstallPrompt } from './useInstallPrompt';
 import LoadingScreen from './components/LoadingScreen';
@@ -44,11 +45,12 @@ export default function App() {
   const scrollRef = useRef(null);
 
   const activeChar = characters.find((c) => c.id === activeId);
+
   const {
-  promptEvent,
-  promptInstall,
-  isInstalled,
-} = useInstallPrompt();
+    promptEvent,
+    promptInstall,
+    isInstalled,
+  } = useInstallPrompt();
 
   const loadMessages = useCallback(async (characterId) => {
     const { messages } = await api.getMessages(characterId);
@@ -57,8 +59,16 @@ export default function App() {
 
   function setTheme(updater) {
     setThemeState((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      localStorage.setItem(THEME_KEY, JSON.stringify(next));
+      const next =
+        typeof updater === 'function'
+          ? updater(prev)
+          : updater;
+
+      localStorage.setItem(
+        THEME_KEY,
+        JSON.stringify(next)
+      );
+
       return next;
     });
   }
@@ -70,17 +80,24 @@ export default function App() {
     while (attempt < maxAttempts) {
       try {
         const { characters } = await api.getCharacters();
+
         setCharacters(characters);
+
         return;
       } catch (err) {
         attempt += 1;
+
         const status = err?.status;
 
         if (
           attempt >= maxAttempts ||
           (status !== 429 && status !== 500)
         ) {
-          console.error('Load characters failed:', err);
+          console.error(
+            'Load characters failed:',
+            err
+          );
+
           return;
         }
 
@@ -121,7 +138,9 @@ export default function App() {
 
       if (synced.length > 0 && activeChar) {
         try {
-          const updated = await loadMessages(activeChar.id);
+          const updated = await loadMessages(
+            activeChar.id
+          );
 
           if (updated) {
             setMessages(updated);
@@ -152,7 +171,10 @@ export default function App() {
       return;
     }
 
-    if (characters.length > 0 && activeId === null) {
+    if (
+      characters.length > 0 &&
+      activeId === null
+    ) {
       setActiveId(characters[0].id);
     }
   }, [user, characters]);
@@ -189,14 +211,20 @@ export default function App() {
     setActiveId(id);
 
     if (id == null) {
-      localStorage.removeItem(ACTIVE_CHARACTER_KEY);
+      localStorage.removeItem(
+        ACTIVE_CHARACTER_KEY
+      );
     } else {
-      localStorage.setItem(ACTIVE_CHARACTER_KEY, id);
+      localStorage.setItem(
+        ACTIVE_CHARACTER_KEY,
+        id
+      );
     }
   }
 
   async function handleCreateCharacter(payload) {
-    const { character } = await api.createCharacter(payload);
+    const { character } =
+      await api.createCharacter(payload);
 
     setCharacters((prev) => [
       character,
@@ -246,10 +274,13 @@ export default function App() {
     const sendStart = Date.now();
 
     try {
-      const data = await api.sendMessage(activeChar.id, {
-        content,
-        imageUrl,
-      });
+      const data = await api.sendMessage(
+        activeChar.id,
+        {
+          content,
+          imageUrl,
+        }
+      );
 
       console.log(
         `Весь запит frontend → backend → OpenRouter → frontend: ${
@@ -267,12 +298,18 @@ export default function App() {
         ]);
       }
     } catch (e) {
-      console.error('Send message error:', e);
+      console.error(
+        'Send message error:',
+        e
+      );
 
-      api.queuePendingMessage(activeChar.id, {
-        content,
-        imageUrl,
-      });
+      api.queuePendingMessage(
+        activeChar.id,
+        {
+          content,
+          imageUrl,
+        }
+      );
 
       setMessages((prev) => [
         ...prev,
@@ -338,8 +375,12 @@ export default function App() {
     setLoading(true);
 
     try {
-      await api.deleteMessages(activeChar.id);
+      await api.deleteMessages(
+        activeChar.id
+      );
+
       setMessages([]);
+
       await loadCharacters();
     } catch (e) {
       console.error(
@@ -380,6 +421,8 @@ export default function App() {
               '1px solid rgba(255,255,255,0.06)',
           }}
         >
+
+          {/* ЛІВА ЧАСТИНА */}
           <div
             className={`${
               view === 'list'
@@ -392,6 +435,8 @@ export default function App() {
                 '1px solid rgba(255,255,255,0.08)',
             }}
           >
+
+            {/* Логотип — тільки десктоп */}
             <div className="hidden md:block px-4 pt-4">
               <span
                 className="text-[11px] font-bold tracking-[0.18em]"
@@ -405,71 +450,53 @@ export default function App() {
               </span>
             </div>
 
-            <ListView
-              characters={characters}
-              buttonsColor={theme.buttonsColor}
-              onOpen={(id) => {
-                setActiveCharacter(id);
-                setView('chat');
+            {/* Список персонажів */}
+            <div className="flex-1 min-h-0">
+              <ListView
+                characters={characters}
+                buttonsColor={
+                  theme.buttonsColor
+                }
+                onOpen={(id) => {
+                  setActiveCharacter(id);
+                  setView('chat');
+                }}
+                onProfile={(id) => {
+                  setActiveCharacter(id);
+                  setView('profile');
+                }}
+              />
+            </div>
+
+            {/* BottomNav — ТІЛЬКИ МОБІЛЬНА ВЕРСІЯ */}
+            <BottomNav
+              buttonsColor={
+                theme.buttonsColor
+              }
+              onChats={() => {
+                setView('list');
               }}
-              onProfile={(id) => {
-                setActiveCharacter(id);
-                setView('profile');
+              onCreate={() => {
+                setView('create');
               }}
-              onCreate={() => setView('create')}
-              onSettings={() => setView('settings')}
+              onSettings={() => {
+                setView('settings');
+              }}
             />
+
           </div>
 
+          {/* ПРАВА ЧАСТИНА */}
           <div
             className={`${
               view === 'list'
                 ? 'hidden md:flex'
                 : 'flex'
-            } flex-col flex-1`}
-            style={{ background: BG }}
+            } flex-col flex-1 min-w-0`}
+            style={{
+              background: BG,
+            }}
           >
-            {promptEvent &&
-              view !== 'create' &&
-              view !== 'settings' && (
-                <div className="px-4 py-3 bg-[#191A22] border-b border-white/10 flex items-center justify-between gap-3">
-                  <div>
-                    <div
-                      className="text-sm font-semibold"
-                      style={{
-                        color: TEXT,
-                        fontFamily:
-                          'Unbounded, sans-serif',
-                      }}
-                    >
-                      Встановити Фелейнбр
-                    </div>
-
-                    <div
-                      className="text-xs"
-                      style={{
-                        color: '#8B8996',
-                      }}
-                    >
-                      Додай цей веб-додаток на домашній екран.
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      promptInstall()
-                    }
-                    className="px-4 py-2 rounded-xl font-semibold"
-                    style={{
-                      background:
-                        theme.buttonsColor,
-                      color: '#0E0E12',
-                    }}
-                  >
-                    Встановити
-                  </button>
-                </div>
-              )}
 
             {view === 'create' && (
               <CreateView
@@ -548,19 +575,24 @@ export default function App() {
               )}
 
             {view === 'settings' && (
-            <SettingsView
-              theme={theme}
-              setTheme={setTheme}
-              onBack={() => setView('list')}
-              onLogout={handleLogout}
-              user={user}
-              onUpdateUser={setUser}
-              promptEvent={promptEvent}
-              promptInstall={promptInstall}
-              isInstalled={isInstalled}
+              <SettingsView
+                theme={theme}
+                setTheme={setTheme}
+                onBack={() =>
+                  setView('list')
+                }
+                onLogout={handleLogout}
+                user={user}
+                onUpdateUser={setUser}
+                promptEvent={promptEvent}
+                promptInstall={
+                  promptInstall
+                }
+                isInstalled={isInstalled}
               />
             )}
 
+            {/* Порожня права частина на десктопі */}
             {!rightPaneHasContent && (
               <div
                 className="hidden md:flex flex-col items-center justify-center h-full gap-2"
@@ -577,10 +609,13 @@ export default function App() {
                 </span>
               </div>
             )}
+
           </div>
+
         </div>
       </div>
 
+      {/* LoadingScreen */}
       {showLoading && (
         <LoadingScreen
           isReady={authChecked}
