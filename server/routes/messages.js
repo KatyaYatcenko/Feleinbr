@@ -1,8 +1,52 @@
 import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { db } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = express.Router();
+
+// Той самий шлях до /uploads, що й у server/routes/upload.js — потрібен,
+// щоб конвертувати завантажені фото в base64 перед відправкою в AI.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const defaultUploadsBase = path.join(__dirname, '..');
+const uploadsDir = path.join(
+  process.env.DATA_DIR || defaultUploadsBase,
+  'uploads'
+);
+
+const MIME_BY_EXT = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.gif': 'image/gif',
+};
+
+// Google Gemini через OpenAI-сумісний ендпоінт НЕ вміє сам завантажувати
+// фото по посиланню (URL) — це підтверджено і документацією Google, і
+// реальною помилкою "Request contains an invalid argument" у логах.
+// Тому найнадійніший спосіб для всіх провайдерів одразу — самим читати
+// файл з диска і передавати як base64 (data:) прямо в тілі запиту.
+function resolveLocalImageAsDataUrl(imageUrl) {
+  if (!imageUrl || !imageUrl.startsWith('/uploads/')) return null;
+
+  try {
+    const filePath = path.join(uploadsDir, path.basename(imageUrl));
+    const buffer = fs.readFileSync(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mime = MIME_BY_EXT[ext] || 'image/jpeg';
+    return `data:${mime};base64,${buffer.toString('base64')}`;
+  } catch (err) {
+    console.warn(
+      'Не вдалося прочитати фото з диска для конвертації в base64:',
+      imageUrl,
+      err.message
+    );
+    return null;
+  }
+}
 
 const GENDER_LABEL = {
   male: 'хлопець',
@@ -49,19 +93,23 @@ function buildContentParts(text, imageUrl, req) {
   }
 
   if (imageUrl) {
-    let resolvedUrl = imageUrl;
+    let resolvedUrl = resolveLocalImageAsDataUrl(imageUrl);
 
-    if (
-      !resolvedUrl.startsWith('data:') &&
-      !/^https?:\/\//i.test(resolvedUrl)
-    ) {
-      const baseUrl =
-        process.env.PUBLIC_BASE_URL ||
-        `${req.protocol}://${req.get('host')}`;
+    if (!resolvedUrl) {
+      resolvedUrl = imageUrl;
 
-      resolvedUrl = resolvedUrl.startsWith('/')
-        ? `${baseUrl}${resolvedUrl}`
-        : `${baseUrl}/${resolvedUrl}`;
+      if (
+        !resolvedUrl.startsWith('data:') &&
+        !/^https?:\/\//i.test(resolvedUrl)
+      ) {
+        const baseUrl =
+          process.env.PUBLIC_BASE_URL ||
+          `${req.protocol}://${req.get('host')}`;
+
+        resolvedUrl = resolvedUrl.startsWith('/')
+          ? `${baseUrl}${resolvedUrl}`
+          : `${baseUrl}/${resolvedUrl}`;
+      }
     }
 
     parts.push({
@@ -267,7 +315,12 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       name: 'OpenRouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: process.env.OPENROUTER_API_KEY,
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-3.6-flash-exp:free',
+      // openrouter/free — автоматичний роутер OpenRouter: сам обирає
+      // доступну зараз безкоштовну модель і сам фільтрує ті, що вміють
+      // працювати із зображеннями. Конкретні :free моделі (gemini, deepseek,
+      // mistral) OpenRouter регулярно прибирає з безкоштовного тарифу,
+      // тому жорстко забита назва моделі швидко "протухає".
+      model: process.env.OPENROUTER_MODEL || 'openrouter/free',
       vision: true,
     },
     {
@@ -294,7 +347,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
   ];
 
   const hasImage = Boolean(imageUrl);
-  // Якщо в повідомленні є фото — лишити  тільки провайдерів, які вміють його читати.
+  // Якщо в повідомленні є фото — лишаємо тільки провайдерів, які вміють його читати.
   const eligibleProviders = hasImage
     ? providers.filter((p) => p.vision)
     : providers;
@@ -307,6 +360,9 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     : 'Немає жодного AI-провайдера з підтримкою аналізу фото (додай OPENAI_API_KEY, GEMINI_API_KEY або OPENROUTER_API_KEY).';
 
   // Автоматичне переключення між сервісами.
+  // Йдемо до наступного провайдера не тільки при помилці HTTP, а й тоді,
+  // коли провайдер відповів 200 OK, але фактично повернув порожній текст —
+  // так модель ніколи не "мовчить" і не пише відповідь "від балди".
   for (const provider of eligibleProviders) {
     if (!provider.key) continue;
 
