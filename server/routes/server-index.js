@@ -16,7 +16,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const dataDir = process.env.DATA_DIR || __dirname;
 
+// Render (і більшість PaaS) стоїть за проксі, що термінує HTTPS.
+// Без цього рядка req.protocol завжди повертає "http", навіть якщо
+// користувач зайшов через https — і всі URL фото, які ми будуємо для
+// AI-провайдерів, виходять з http:// замість https://.
+app.set('trust proxy', 1);
 
+// Configure CORS: if CORS_ORIGIN is set in .env, allow only that origin,
+// otherwise allow all origins (useful for local development).
 const corsOrigin = process.env.CORS_ORIGIN;
 if (corsOrigin) {
   app.use(cors({ origin: corsOrigin }));

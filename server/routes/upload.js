@@ -9,7 +9,11 @@ import { requireAuth } from '../middleware/auth.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Той самий DATA_DIR, що й у server/db.js — щоб фото лежали на тому ж
 // постійному диску, що й база, і не губились після редеплою.
-const dataDir = process.env.DATA_DIR || __dirname;
+// Без DATA_DIR (типовий випадок) все має лежати в server/uploads — тобто
+// на рівень вище за цю папку (routes), інакше express.static() в index.js
+// шукатиме файли не там, куди їх реально зберіг multer, і віддаватиме 404.
+const defaultUploadsBase = path.join(__dirname, '..');
+const dataDir = process.env.DATA_DIR || defaultUploadsBase;
 const uploadsDir = path.join(dataDir, 'uploads');
 
 if (!fs.existsSync(uploadsDir)) {
