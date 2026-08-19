@@ -312,6 +312,17 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       vision: true,
     },
     {
+      // Той самий GROQ_API_KEY, що й для тексту нижче, але окрема
+      // vision-модель. У Groq набагато щедріший безкоштовний ліміт
+      // (тисячі запитів на добу), ніж у Gemini (20/добу) чи OpenRouter
+      // (50/добу) — тому ставимо його раніше в черзі як "запасний".
+      name: 'Groq (Llama 4 Scout, vision)',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      key: process.env.GROQ_API_KEY,
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      vision: true,
+    },
+    {
       name: 'OpenRouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: process.env.OPENROUTER_API_KEY,
