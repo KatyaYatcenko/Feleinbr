@@ -5,8 +5,15 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// DATA_DIR дозволяє винести файл бази даних на постійний диск (Render Disk,
+// тощо), щоб персонажі й повідомлення НЕ зникали після кожного redeploy
+// чи "засинання" безкоштовного сервера. Якщо DATA_DIR не задано — як і
+// раніше, база лежить поруч із кодом (це нормально лише для локальної
+// розробки, на проді вона стиратиметься).
+const dataDir = process.env.DATA_DIR || __dirname;
+
 export const db = await open({
-  filename: path.join(__dirname, 'feleinbr.sqlite'),
+  filename: path.join(dataDir, 'feleinbr.sqlite'),
   driver: sqlite3.Database
 });
 

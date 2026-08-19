@@ -36,7 +36,6 @@ router.get('/', requireAuth, async (req, res) => {
     res.json({ characters: rows.map((c) => toPublicCharacter(c, req.userId)) });
   } catch (err) {
     console.error('Get characters error:', err);
-    // On API failure, do not return an empty list here; frontend should preserve existing state.
     res.status(500).json({ error: 'Помилка отримання персонажів' });
   }
 });

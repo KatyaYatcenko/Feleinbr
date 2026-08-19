@@ -96,32 +96,34 @@ function buildSystemPrompt(character, user) {
   const genderLabel =
     GENDER_LABEL[user?.gender] || GENDER_LABEL.other;
 
-  return `Ти — ${character?.name || 'персонаж'}.
+  return `Ти — ${character?.name || 'персонаж'}. Ось повний опис твоєї особистості, і саме на нього має спиратись КОЖНА твоя відповідь — тон, лексика, манера говорити, ставлення до співрозмовника:
 
-Опис особистості:
+"""
 ${description}
+"""
 
 Твій співрозмовник: ${user?.username || 'користувач'} (${genderLabel}).
 
-Це звичайний особистий чат. Відповідай як конкретна людина з описаним характером, а не як AI-помічник.
+Це звичайний особистий чат. Відповідай як жива людина з описаним вище характером, а не як AI-помічник, і не як узагальнений "дружній бот" — опис персонажа завжди має пріоритет над нижченаведеними правилами стилю, якщо вони суперечать одне одному.
 
 Правила стилю спілкування:
 
 - Це звичайний живий чат, а не рольова сцена.
-- Відповідай природно і коротко.
+- Відповідай природно і коротко, у манері саме цього персонажа.
 - Не вигадуй події, яких не було в діалозі.
 - Не перетворюй звичайні повідомлення на флірт або сексуальний контекст без явної причини.
 - Не пояснюй свої дії, думки, жести, міміку чи стан.
 - Не використовуй художню прозу.
 - Не використовуй формулювання на кшталт "якщо хочеш", "ти точно готова?", "я вже біжу", якщо вони не випливають безпосередньо з контексту.
-- Не намагайся бути милим, кокетливим або грайливим у кожній відповіді.
+- Не намагайся бути милим, кокетливим або грайливим у кожній відповіді, якщо це не властиво персонажу з опису.
 - Якщо повідомлення коротке, відповідь теж зазвичай має бути короткою.
 - Якщо користувач пише "привіт" — відповідай як людина в чаті, а не створюй сцену.
 - Якщо користувач називає тебе по імені — не роби вигляд, що це загадка або привід для драматичної реакції.
 - Говори українською розмовною мовою.
 - Не використовуй російські, англійські або дивні машинні конструкції, якщо вони не є частиною природної мови персонажа.
 - Не вигадуй слова та граматичні конструкції.
-- Не вставляй емодзі без причини.`;
+- Не вставляй емодзі без причини.
+- Якщо співрозмовник надіслав фото — уважно подивись, що саме на ньому зображено, і відповідай по суті побаченого, враховуючи свій характер з опису вище. Ніколи не відповідай узагальненою фразою "гарне фото" чи подібним без прив'язки до реального вмісту зображення.`;
 }
 
 async function getCharacterOrFail(characterId, userId, res) {
@@ -242,46 +244,70 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
   const characterPrompt = buildSystemPrompt(character, user);
 
-  // Список усіх доступних AI-сервісів
+  // Список усіх доступних AI-сервісів.
+  // vision: true — модель вміє реально аналізувати вміст фото (image_url).
+  // Моделі без vision: true при надсиланні фото пропускаються повністю,
+  // бо вони або ігнорують картинку, або повертають порожню відповідь.
   const providers = [
     {
-      name: 'Groq',
-      url: 'https://api.groq.com/openai/v1/chat/completions',
-      key: process.env.GROQ_API_KEY,
-      model: 'llama-3.3-70b-versatile',
-    },
-    {
-      name: 'Mistral AI',
-      url: 'https://api.mistral.ai/v1/chat/completions',
-      key: process.env.MISTRAL_API_KEY,
-      model: 'mistral-small-latest', // або 'mistral-medium-latest', 'open-mixtral-8x7b'
+      name: 'OpenAI (ChatGPT)',
+      url: 'https://api.openai.com/v1/chat/completions',
+      key: process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
+      vision: true,
     },
     {
       name: 'Gemini (OpenAI-compatible)',
       url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
       key: process.env.GEMINI_API_KEY,
       model: 'gemini-2.0-flash',
+      vision: true,
     },
     {
       name: 'OpenRouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: process.env.OPENROUTER_API_KEY,
       model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
+      vision: true,
+    },
+    {
+      name: 'Groq',
+      url: 'https://api.groq.com/openai/v1/chat/completions',
+      key: process.env.GROQ_API_KEY,
+      model: 'llama-3.3-70b-versatile',
+      vision: false,
+    },
+    {
+      name: 'Mistral AI',
+      url: 'https://api.mistral.ai/v1/chat/completions',
+      key: process.env.MISTRAL_API_KEY,
+      model: 'mistral-small-latest', // або 'mistral-medium-latest', 'open-mixtral-8x7b'
+      vision: false,
     },
     {
       name: 'DeepSeek',
       url: 'https://api.deepseek.com/chat/completions',
       key: process.env.DEEPSEEK_API_KEY,
       model: 'deepseek-chat',
+      vision: false,
     },
   ];
 
-  const startTime = Date.now();
-  let response = null;
-  let usedProvider = null;
+  const hasImage = Boolean(imageUrl);
+  // Якщо в повідомленні є фото — лишити  тільки провайдерів, які вміють його читати.
+  const eligibleProviders = hasImage
+    ? providers.filter((p) => p.vision)
+    : providers;
 
-  // Автоматичне переключення між сервісами
-  for (const provider of providers) {
+  const startTime = Date.now();
+  let reply = null;
+  let usedProvider = null;
+  let lastErrorReason = eligibleProviders.length
+    ? null
+    : 'Немає жодного AI-провайдера з підтримкою аналізу фото (додай OPENAI_API_KEY, GEMINI_API_KEY або OPENROUTER_API_KEY).';
+
+  // Автоматичне переключення між сервісами.
+  for (const provider of eligibleProviders) {
     if (!provider.key) continue;
 
     try {
@@ -315,53 +341,52 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         }),
       });
 
-      if (res.ok) {
-        response = res;
-        usedProvider = provider.name;
-        break;
+      if (!res.ok) {
+        const errText = await res.text();
+        console.warn(`Провайдер ${provider.name} дав помилку ${res.status}:`, errText);
+        lastErrorReason = `Провайдер ${provider.name}: HTTP ${res.status}`;
+        continue;
       }
 
-      const errText = await res.text();
-      console.warn(`Провайдер ${provider.name} дав помилку ${res.status}:`, errText);
+      const data = await res.json();
+      const rawReply = extractReplyText(data?.choices?.[0]?.message?.content);
+      const candidateReply = sanitizeModelReply(rawReply);
+
+      if (!candidateReply) {
+        console.warn(`Провайдер ${provider.name} повернув порожню відповідь, пробуємо наступного.`, {
+          rawReply,
+          content: data?.choices?.[0]?.message?.content,
+        });
+        lastErrorReason = `Провайдер ${provider.name} повернув порожню відповідь`;
+        continue;
+      }
+
+      reply = candidateReply;
+      usedProvider = provider.name;
+      console.log(
+        `Відповідь успішно отримано через ${provider.name} за ${Date.now() - startTime} мс. Модель: ${data?.model || provider.model}`
+      );
+      break;
     } catch (err) {
       console.error(`Помилка запиту до ${provider.name}:`, err);
+      lastErrorReason = `Провайдер ${provider.name}: ${err.message}`;
     }
   }
 
   const elapsed = Date.now() - startTime;
 
-  if (!response) {
-    console.error(`Усі AI-сервіси повернули помилку або не мають ключів. Затрачено ${elapsed} мс.`);
+  if (!reply) {
+    console.error(
+      `Жоден AI-провайдер не дав змістовної відповіді. Затрачено ${elapsed} мс. Причина: ${lastErrorReason}`
+    );
     return res.status(502).json({
-      error: 'Усі AI-сервіси наразі недоступні або вичерпано ліміти.',
+      error: hasImage
+        ? 'Не вдалося обробити фото — жоден AI-сервіс із підтримкою зображень зараз недоступний.'
+        : 'Усі AI-сервіси наразі недоступні або вичерпано ліміти.',
     });
   }
 
   try {
-    const data = await response.json();
-
-    console.log(
-      `Відповідь успішно отримано через ${usedProvider} за ${elapsed} мс. Модель: ${data?.model || 'невідома'}`
-    );
-
-    const rawReply = extractReplyText(
-      data?.choices?.[0]?.message?.content
-    );
-
-    const reply = sanitizeModelReply(rawReply);
-
-    if (!reply) {
-      console.error('Порожня відповідь моделі:', {
-        rawReply,
-        content: data?.choices?.[0]?.message?.content,
-        data,
-      });
-
-      return res.status(502).json({
-        error: 'Модель повернула порожню відповідь',
-      });
-    }
-
     await db.run(
       'INSERT INTO messages (character_id, user_id, role, content, image_url) VALUES (?, ?, ?, ?, ?)',
       character.id,
@@ -371,14 +396,11 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       null
     );
 
-    return res.json({
-      reply,
-    });
+    return res.json({ reply });
   } catch (error) {
-    console.error(`Помилка обробки відповіді від ${usedProvider}:`, error);
-
+    console.error(`Помилка збереження відповіді від ${usedProvider}:`, error);
     return res.status(500).json({
-      error: 'Не вдалося обробити відповідь від моделі',
+      error: 'Не вдалося зберегти відповідь від моделі',
     });
   }
 });

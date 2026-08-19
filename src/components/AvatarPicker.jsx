@@ -10,13 +10,15 @@ const ICONS = { Cat, Dog, Bird, Fish, Ghost, Rabbit, Turtle, Bug, Flame, Moon, S
 
 // avatarType: 'icon' (avatarValue = id з галереї) або 'photo' (avatarValue = URL завантаженого фото)
 export function AvatarIcon({ avatarType = 'icon', avatarValue = 'sparkles', avatarId, size = 40 }) {
+  const [broken, setBroken] = React.useState(false);
   const value = avatarValue || avatarId; // avatarId лишено для сумісності зі старими викликами
 
-  if (avatarType === 'photo' && value) {
+  if (avatarType === 'photo' && value && !broken) {
     return (
       <img
         src={value && value.startsWith('/') ? `${API_URL}${value}` : value}
         alt=""
+        onError={() => setBroken(true)}
         className="rounded-full object-cover shrink-0"
         style={{ width: size, height: size }}
       />

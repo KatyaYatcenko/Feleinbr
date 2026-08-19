@@ -24,7 +24,7 @@ export default function ListView({
         right={
           <button
             onClick={onSettings}
-            className="p-2 rounded-full active:opacity-60"
+            className="hidden md:flex p-2 rounded-full active:opacity-60"
             style={{ background: SURFACE }}
           >
             <Settings size={18} color={MUTED} />

@@ -50,7 +50,7 @@ export default function LoadingScreen({ isReady, onFinished }) {
   const [progress, setProgress] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
 
-  // Повільно рухаємо прогрес, поки сервер ще не відповів
+  // Повільно рухає прогрес, поки сервер ще не відповів
   useEffect(() => {
     if (isReady) {
       setProgress(100);

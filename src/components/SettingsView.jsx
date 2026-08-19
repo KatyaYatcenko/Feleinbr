@@ -161,6 +161,7 @@ export default function SettingsView({
   const [avatarValue, setAvatarValue] = useState(
     user?.avatarValue || 'sparkles'
   );
+  const [avatarPhotoBroken, setAvatarPhotoBroken] = useState(false);
 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [savingProfile, setSavingProfile] =
@@ -189,8 +190,10 @@ export default function SettingsView({
       if (user.avatarType)
         setAvatarType(user.avatarType);
 
-      if (user.avatarValue)
+      if (user.avatarValue) {
         setAvatarValue(user.avatarValue);
+        setAvatarPhotoBroken(false);
+      }
     }
   }, [user]);
 
@@ -204,6 +207,7 @@ export default function SettingsView({
 
       setAvatarType('photo');
       setAvatarValue(url);
+      setAvatarPhotoBroken(false);
     } catch (err) {
       console.error(err);
       setProfileError(
@@ -316,7 +320,7 @@ export default function SettingsView({
 
           <div className="flex items-center gap-4">
             <div className="w-20 h-20 rounded-full overflow-hidden bg-[#14151B] flex items-center justify-center shrink-0">
-              {avatarType === 'photo' ? (
+              {avatarType === 'photo' && !avatarPhotoBroken ? (
                 <img
                   src={
                     avatarValue?.startsWith(
@@ -325,16 +329,13 @@ export default function SettingsView({
                       ? avatarValue
                       : `${API_URL}${avatarValue}`
                   }
-                  onError={(e) => {
-                    e.target.src =
-                      '/default-avatar.png';
-                  }}
+                  onError={() => setAvatarPhotoBroken(true)}
                   alt="Avatar"
                   className="rounded-full object-cover w-full h-full"
                 />
               ) : (
                 <AvatarIcon
-                  avatarType={avatarType}
+                  avatarType={avatarPhotoBroken ? 'icon' : avatarType}
                   avatarValue={avatarValue}
                   size={80}
                 />

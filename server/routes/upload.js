@@ -1,12 +1,20 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { requireAuth } from '../middleware/auth.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const uploadsDir = path.join(__dirname, '..', 'uploads');
+// Той самий DATA_DIR, що й у server/db.js — щоб фото лежали на тому ж
+// постійному диску, що й база, і не губились після редеплою.
+const dataDir = process.env.DATA_DIR || __dirname;
+const uploadsDir = path.join(dataDir, 'uploads');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
