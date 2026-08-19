@@ -260,14 +260,14 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       name: 'Gemini (OpenAI-compatible)',
       url: 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
       key: process.env.GEMINI_API_KEY,
-      model: 'gemini-2.0-flash',
+      model: 'gemini-3.6-flash',
       vision: true,
     },
     {
       name: 'OpenRouter',
       url: 'https://openrouter.ai/api/v1/chat/completions',
       key: process.env.OPENROUTER_API_KEY,
-      model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-exp:free',
+      model: process.env.OPENROUTER_MODEL || 'google/gemini-3.6-flash-exp:free',
       vision: true,
     },
     {
