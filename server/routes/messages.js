@@ -316,10 +316,13 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       // vision-модель. У Groq набагато щедріший безкоштовний ліміт
       // (тисячі запитів на добу), ніж у Gemini (20/добу) чи OpenRouter
       // (50/добу) — тому ставимо його раніше в черзі як "запасний".
-      name: 'Groq (Llama 4 Scout, vision)',
+      // ВАЖЛИВО: Groq регулярно знімає моделі з підтримки (сталось і з
+      // llama-4-scout) — якщо ця модель колись перестане працювати,
+      // актуальний список дивись на console.groq.com/docs/models.
+      name: 'Groq (Qwen3.6, vision)',
       url: 'https://api.groq.com/openai/v1/chat/completions',
       key: process.env.GROQ_API_KEY,
-      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+      model: 'qwen/qwen3.6-27b',
       vision: true,
     },
     {
@@ -338,7 +341,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
       name: 'Groq',
       url: 'https://api.groq.com/openai/v1/chat/completions',
       key: process.env.GROQ_API_KEY,
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       vision: false,
     },
     {
