@@ -27,6 +27,20 @@ export function getPendingMessages() {
 
 export function queuePendingMessage(characterId, payload) {
   const pending = getPendingMessagesData();
+
+  // Не додає повторно те саме повідомлення (той самий текст+фото для
+  // того самого персонажа), якщо воно вже стоїть у черзі — інакше кожна
+  // невдала спроба надсилання того самого повідомлення (наприклад, під
+  // час тимчасових проблем з AI-сервісами) створює дублікат, і всі вони
+  // одночасно "вистрілюють" при наступній синхронізації.
+  const isDuplicate = pending.some(
+    (item) =>
+      item.characterId === characterId &&
+      item.content === (payload.content || '') &&
+      item.imageUrl === (payload.imageUrl || null)
+  );
+  if (isDuplicate) return;
+
   pending.push({
     id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     characterId,
@@ -35,6 +49,28 @@ export function queuePendingMessage(characterId, payload) {
     createdAt: new Date().toISOString(),
   });
   setPendingMessagesData(pending);
+}
+
+// Прибирає з локальної черги всі "непередані" повідомлення конкретного
+// персонажа. Обов'язково викликати при повному очищенні чату, інакше
+// старі повідомлення "воскресають" — chatClear стирає лише те, що вже є
+// в базі, а ця черга живе окремо в localStorage і при наступному заході
+// на сайт автоматично намагається відправити все, що в ній лишилось.
+export function clearPendingMessagesForCharacter(characterId) {
+  const pending = getPendingMessagesData();
+  const remaining = pending.filter(
+    (item) => item.characterId !== characterId
+  );
+  setPendingMessagesData(remaining);
+}
+
+// Повністю стирає локальну чергу "непереданих" повідомлень — раніше вона
+// автоматично пересилалась на сервер при кожному вході в застосунок,
+// що спричиняло "воскресання" старих/видалених повідомлень з новими,
+// щоразу іншими відповідями персонажа. Ця функція викликається один раз
+// при вході, щоб прибрати те, що вже встигло накопичитись у черзі.
+export function clearAllPendingMessages() {
+  setPendingMessagesData([]);
 }
 
 export async function syncPendingMessages() {
@@ -108,6 +144,8 @@ export const api = {
   deleteMessage: (characterId, messageId) => request(`/api/messages/${characterId}/${messageId}`, { method: 'DELETE' }),
   rewindMessage: (characterId, messageId) => request(`/api/messages/${characterId}/${messageId}/rewind`, { method: 'POST' }),
   queuePendingMessage,
+  clearPendingMessagesForCharacter,
+  clearAllPendingMessages,
   syncPendingMessages,
 
   uploadFile: (file) => {

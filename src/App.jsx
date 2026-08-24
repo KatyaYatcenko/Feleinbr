@@ -130,30 +130,17 @@ export default function App() {
     }
   }, [user, loadCharacters]);
 
+  // Раніше тут був автоматичний фоновий пересил "непереданих" повідомлень
+  // при кожному вході в застосунок (syncPendingMessages) — саме через
+  // нього видалені/старі повідомлення "воскресали", і ще й із НОВИМИ
+  // (щоразу іншими) відповідями персонажа, бо ШІ генерував відповідь
+  // заново щоразу, коли черга пересилалась. Прибрано навмисно: якщо
+  // повідомлення не надіслалось, користувач бачить помилку одразу й може
+  // натиснути "надіслати" сам, без прихованої магії у фоні.
   useEffect(() => {
     if (!user) return;
-
-    (async () => {
-      const synced = await api.syncPendingMessages();
-
-      if (synced.length > 0 && activeChar) {
-        try {
-          const updated = await loadMessages(
-            activeChar.id
-          );
-
-          if (updated) {
-            setMessages(updated);
-          }
-        } catch (err) {
-          console.error(
-            'Failed to refresh messages after sync:',
-            err
-          );
-        }
-      }
-    })();
-  }, [user, activeChar?.id, loadMessages]);
+    api.clearAllPendingMessages?.();
+  }, [user]);
 
   useEffect(() => {
     if (!user || characters.length === 0) return;
@@ -303,19 +290,11 @@ export default function App() {
         e
       );
 
-      api.queuePendingMessage(
-        activeChar.id,
-        {
-          content,
-          imageUrl,
-        }
-      );
-
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: `Помилка: ${e.message}. Повідомлення збережено локально.`,
+          content: `Помилка: ${e.message}. Спробуй, будь ласка, надіслати повідомлення ще раз.`,
         },
       ]);
     } finally {
@@ -376,6 +355,13 @@ export default function App() {
 
     try {
       await api.deleteMessages(
+        activeChar.id
+      );
+
+      // Прибираємо й локальну чергу "непереданих" повідомлень для цього
+      // персонажа — без цього старі репліки могли "воскресати" при
+      // наступному вході на сайт.
+      api.clearPendingMessagesForCharacter(
         activeChar.id
       );
 
