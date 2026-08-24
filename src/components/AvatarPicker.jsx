@@ -89,7 +89,7 @@ export default function AvatarPicker({ selected, onSelect, onUploadPhoto, onClos
                 border: selected === a.id ? '1px solid rgba(255,255,255,0.2)' : '1px solid transparent',
               }}
             >
-              <AvatarIcon avatarId={a.id} size={44} />
+              <AvatarIcon avatarValue={a.id} size={44} />
             </button>
           ))}
         </div>
