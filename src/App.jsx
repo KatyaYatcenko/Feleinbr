@@ -210,16 +210,24 @@ export default function App() {
   }
 
   async function handleCreateCharacter(payload) {
-    const { character } =
-      await api.createCharacter(payload);
+    try {
+      const { character } = await api.createCharacter(payload);
 
-    setCharacters((prev) => [
-      character,
-      ...prev,
-    ]);
+      setCharacters((prev) => [
+        character,
+        ...prev,
+      ]);
 
-    setActiveCharacter(character.id);
-    setView('chat');
+      setActiveCharacter(character.id);
+      setView('chat');
+    } catch (e) {
+      console.error('Create character error:', e);
+      // Раніше помилка тут просто "мовчала" — кнопка ніби не реагувала.
+      // Тепер користувач бачить, що саме пішло не так.
+      alert(
+        `Не вдалося створити персонажа: ${e.message}`
+      );
+    }
   }
 
   async function deleteCharacter(id) {
