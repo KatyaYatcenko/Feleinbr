@@ -27,20 +27,41 @@ const MIME_BY_EXT = {
 // Google Gemini через OpenAI-сумісний ендпоінт НЕ вміє сам завантажувати
 // фото по посиланню (URL) — це підтверджено і документацією Google, і
 // реальною помилкою "Request contains an invalid argument" у логах.
-// Тому найнадійніший спосіб для всіх провайдерів одразу — самим читати
-// файл з диска і передавати як base64 (data:) прямо в тілі запиту.
-function resolveLocalImageAsDataUrl(imageUrl) {
-  if (!imageUrl || !imageUrl.startsWith('/uploads/')) return null;
+// Тому найнадійніший спосіб для всіх провайдерів одразу — самим прочитати
+// байти фото (з локального диска АБО з публічного посилання Supabase
+// Storage — залежно від того, де воно фізично зберігається) і передати
+// як base64 (data:) прямо в тілі запиту.
+async function resolveImageAsDataUrl(imageUrl) {
+  if (!imageUrl) return null;
+  if (imageUrl.startsWith('data:')) return imageUrl;
 
   try {
-    const filePath = path.join(uploadsDir, path.basename(imageUrl));
-    const buffer = fs.readFileSync(filePath);
-    const ext = path.extname(filePath).toLowerCase();
+    let buffer;
+    let ext;
+
+    if (imageUrl.startsWith('/uploads/')) {
+      // Локальний диск сервера (використовується, коли Supabase Storage
+      // не налаштовано — SUPABASE_URL відсутній).
+      const filePath = path.join(uploadsDir, path.basename(imageUrl));
+      buffer = fs.readFileSync(filePath);
+      ext = path.extname(filePath).toLowerCase();
+    } else if (/^https?:\/\//i.test(imageUrl)) {
+      // Публічне посилання (Supabase Storage або будь-яке інше) — самі
+      // качаємо байти й перетворюємо в base64.
+      const res = await fetch(imageUrl);
+      if (!res.ok) return null;
+      const arrayBuf = await res.arrayBuffer();
+      buffer = Buffer.from(arrayBuf);
+      ext = path.extname(new URL(imageUrl).pathname).toLowerCase();
+    } else {
+      return null;
+    }
+
     const mime = MIME_BY_EXT[ext] || 'image/jpeg';
     return `data:${mime};base64,${buffer.toString('base64')}`;
   } catch (err) {
     console.warn(
-      'Не вдалося прочитати фото з диска для конвертації в base64:',
+      'Не вдалося прочитати фото для конвертації в base64:',
       imageUrl,
       err.message
     );
@@ -118,7 +139,7 @@ function extractReplyText(content) {
   return '';
 }
 
-function buildContentParts(text, imageUrl, req) {
+async function buildContentParts(text, imageUrl, req) {
   const parts = [];
 
   if (text?.trim()) {
@@ -129,7 +150,7 @@ function buildContentParts(text, imageUrl, req) {
   }
 
   if (imageUrl) {
-    let resolvedUrl = resolveLocalImageAsDataUrl(imageUrl);
+    let resolvedUrl = await resolveImageAsDataUrl(imageUrl);
 
     if (!resolvedUrl) {
       resolvedUrl = imageUrl;
@@ -319,7 +340,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
 
   for (const msg of rawHistory.reverse()) {
     const keepImage = historyImageIds.includes(msg.id);
-    const parts = buildContentParts(
+    const parts = await buildContentParts(
       msg.content || (msg.image_url && !keepImage ? '[фото]' : ''),
       keepImage ? msg.image_url : null,
       req
@@ -338,7 +359,7 @@ router.post('/:characterId', requireAuth, async (req, res) => {
     });
   }
 
-  const currentUserContent = buildContentParts(
+  const currentUserContent = await buildContentParts(
     content || '',
     imageUrl,
     req

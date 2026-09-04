@@ -16,20 +16,31 @@ const defaultUploadsBase = path.join(__dirname, '..');
 const dataDir = process.env.DATA_DIR || defaultUploadsBase;
 const uploadsDir = path.join(dataDir, 'uploads');
 
-if (!fs.existsSync(uploadsDir)) {
+// Якщо задано SUPABASE_URL і SUPABASE_SERVICE_ROLE_KEY — фото йдуть у
+// Supabase Storage (справжній постійний диск, безкоштовно, не залежить
+// від Render). Якщо ні — як і раніше, пишемо на локальний диск сервера
+// (працює, але без платного Render Disk НЕ переживає redeploy).
+const useSupabaseStorage = Boolean(
+  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+let supabase = null;
+if (useSupabaseStorage) {
+  const { createClient } = await import('@supabase/supabase-js');
+  supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
+} else if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadsDir),
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.jpg';
-    cb(null, crypto.randomBytes(16).toString('hex') + ext);
-  },
-});
+const SUPABASE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'uploads';
 
+// memoryStorage — тримаємо файл у пам'яті (не на диску одразу), бо він
+// тепер може піти або в Supabase Storage, або на локальний диск.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith('image/')) return cb(new Error('Дозволені лише зображення'));
@@ -39,9 +50,36 @@ const upload = multer({
 
 const router = express.Router();
 
-router.post('/', requireAuth, upload.single('file'), (req, res) => {
+router.post('/', requireAuth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Файл не завантажено' });
-  res.json({ url: `/uploads/${req.file.filename}` });
+
+  const ext = path.extname(req.file.originalname) || '.jpg';
+  const filename = crypto.randomBytes(16).toString('hex') + ext;
+
+  try {
+    if (useSupabaseStorage) {
+      const { error } = await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(filename, req.file.buffer, {
+          contentType: req.file.mimetype,
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      const { data } = supabase.storage
+        .from(SUPABASE_BUCKET)
+        .getPublicUrl(filename);
+
+      return res.json({ url: data.publicUrl });
+    }
+
+    fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
+    return res.json({ url: `/uploads/${filename}` });
+  } catch (err) {
+    console.error('Помилка завантаження фото:', err);
+    return res.status(500).json({ error: 'Не вдалося завантажити фото' });
+  }
 });
 
 export default router;
