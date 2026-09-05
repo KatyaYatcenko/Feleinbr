@@ -403,10 +403,25 @@ export default function App() {
   if (authChecked && !user) {
     return (
       <>
-        <AuthView
-          accent="#FF5D8F"
-          onAuthed={(authedUser) => setUser(authedUser)}
-        />
+        <div
+          className="w-full h-[100dvh] flex justify-center overflow-hidden"
+          style={{ background: BG }}
+        >
+          <div
+            className="w-full h-full md:h-[92vh] md:my-[4vh] md:max-w-[420px] md:rounded-3xl overflow-hidden flex"
+            style={{
+              color: TEXT,
+              fontFamily: 'Inter, sans-serif',
+              border: '1px solid rgba(255,255,255,0.06)',
+              background: BG,
+            }}
+          >
+            <AuthView
+              accent="#FF5D8F"
+              onAuthed={(authedUser) => setUser(authedUser)}
+            />
+          </div>
+        </div>
 
         {showLoading && (
           <LoadingScreen
