@@ -20,22 +20,44 @@ const uploadsDir = path.join(dataDir, 'uploads');
 // Supabase Storage (справжній постійний диск, безкоштовно, не залежить
 // від Render). Якщо ні — як і раніше, пишемо на локальний диск сервера
 // (працює, але без платного Render Disk НЕ переживає redeploy).
+//
+// ВАЖЛИВО: тут навмисно НЕ використовується пакет @supabase/supabase-js —
+// він під капотом ще й підіймає Realtime-клієнт (WebSocket), який тут
+// узагалі не потрібен (треба лише Storage), а на версії Node, яку
+// Render використовує за замовчуванням, це валило сервер з помилкою
+// "Node.js detected but native WebSocket not found". Замість пакета —
+// звичайні HTTP-запити напряму до Storage REST API Supabase, без зайвих
+// залежностей і без цього бага.
 const useSupabaseStorage = Boolean(
   process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-let supabase = null;
-if (useSupabaseStorage) {
-  const { createClient } = await import('@supabase/supabase-js');
-  supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-} else if (!fs.existsSync(uploadsDir)) {
+if (!useSupabaseStorage && !fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
 const SUPABASE_BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'uploads';
+
+async function uploadToSupabaseStorage(filename, buffer, contentType) {
+  const uploadUrl = `${process.env.SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${filename}`;
+
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': contentType,
+      'x-upsert': 'false',
+    },
+    body: buffer,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Supabase Storage: ${res.status} ${errText}`);
+  }
+
+  return `${process.env.SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${filename}`;
+}
 
 // memoryStorage — тримаємо файл у пам'яті (не на диску одразу), бо він
 // тепер може піти або в Supabase Storage, або на локальний диск.
@@ -58,20 +80,12 @@ router.post('/', requireAuth, upload.single('file'), async (req, res) => {
 
   try {
     if (useSupabaseStorage) {
-      const { error } = await supabase.storage
-        .from(SUPABASE_BUCKET)
-        .upload(filename, req.file.buffer, {
-          contentType: req.file.mimetype,
-          upsert: false,
-        });
-
-      if (error) throw error;
-
-      const { data } = supabase.storage
-        .from(SUPABASE_BUCKET)
-        .getPublicUrl(filename);
-
-      return res.json({ url: data.publicUrl });
+      const url = await uploadToSupabaseStorage(
+        filename,
+        req.file.buffer,
+        req.file.mimetype
+      );
+      return res.json({ url });
     }
 
     fs.writeFileSync(path.join(uploadsDir, filename), req.file.buffer);
