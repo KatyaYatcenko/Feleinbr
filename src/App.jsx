@@ -400,6 +400,24 @@ export default function App() {
     view === 'profile' ||
     (view === 'chat' && activeChar);
 
+  if (authChecked && !user) {
+    return (
+      <>
+        <AuthView
+          accent="#FF5D8F"
+          onAuthed={(authedUser) => setUser(authedUser)}
+        />
+
+        {showLoading && (
+          <LoadingScreen
+            isReady={authChecked}
+            onFinished={() => setShowLoading(false)}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <div
