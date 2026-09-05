@@ -515,6 +515,24 @@ router.post('/:characterId', requireAuth, async (req, res) => {
         continue;
       }
 
+      // Персонажі в цьому застосунку завжди мають говорити українською.
+      // Якщо відповідь вийшла майже без кирилиці (наприклад, залишок
+      // англомовних роздумів моделі, які не вдалось прибрати через
+      // <think>-теги) — це явно не репліка персонажа, а сміття. Пробуємо
+      // наступного провайдера, а не показуємо це користувачу.
+      const lettersOnly = candidateReply.replace(/[^a-zA-Zа-яА-ЯіїєґІЇЄҐ]/g, '');
+      const cyrillicCount = (candidateReply.match(/[а-яА-ЯіїєґІЇЄҐ]/g) || []).length;
+      const isMostlyNonUkrainian =
+        lettersOnly.length >= 8 && cyrillicCount / lettersOnly.length < 0.3;
+
+      if (isMostlyNonUkrainian) {
+        console.warn(`Провайдер ${provider.name} повернув не українською, пробуємо наступного.`, {
+          candidateReply,
+        });
+        lastErrorReason = `Провайдер ${provider.name} повернув відповідь не українською`;
+        continue;
+      }
+
       reply = candidateReply;
       usedProvider = provider.name;
       console.log(
