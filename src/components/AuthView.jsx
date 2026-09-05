@@ -21,6 +21,8 @@ export default function AuthView({ accent, onAuthed }) {
   const [gender, setGender] = useState('female');
   const [avatarType, setAvatarType] = useState('icon');
   const [avatarValue, setAvatarValue] = useState('sparkles');
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -29,6 +31,14 @@ export default function AuthView({ accent, onAuthed }) {
   const [resetStep, setResetStep] = useState(1);
   const [resetCode, setResetCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  function handleSelectPhotoFile(file) {
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarType('photo');
+    setAvatarPreviewUrl(URL.createObjectURL(file));
+    setPickerOpen(false);
+  }
 
   async function submit() {
     setError('');
@@ -97,7 +107,28 @@ export default function AuthView({ accent, onAuthed }) {
           : { username: username.trim(), password };
       const data = await api[mode](payload);
       setToken(data.token);
-      onAuthed(data.user);
+
+      let finalUser = data.user;
+
+      // Фото не можна завантажити ДО реєстрації (сервер вимагає токен,
+      // а токена ще нема) — тому файл лежав у пам'яті, і щойно акаунт
+      // створено, довантажуємо його і одразу зберігаємо як аватарку.
+      if (mode === 'register' && avatarFile) {
+        try {
+          const { url } = await api.uploadFile(avatarFile);
+          const updated = await api.updateUserProfile({
+            avatarType: 'photo',
+            avatarValue: url,
+          });
+          finalUser = updated.user;
+        } catch (uploadErr) {
+          console.error('Avatar upload after signup failed:', uploadErr);
+          // Не блокуємо вхід через це — акаунт уже створено, фото можна
+          // додати пізніше в налаштуваннях.
+        }
+      }
+
+      onAuthed(finalUser);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -122,10 +153,41 @@ export default function AuthView({ accent, onAuthed }) {
         {mode === 'register' && (
           <div className="flex flex-col items-center mb-6">
             <button onClick={() => setPickerOpen(true)} className="active:scale-95 transition-transform">
-              <AvatarIcon avatarType={avatarType} avatarValue={avatarValue} size={72} />
+              {avatarType === 'photo' && avatarPreviewUrl ? (
+                <img
+                  src={avatarPreviewUrl}
+                  alt=""
+                  className="rounded-full object-cover"
+                  style={{ width: 72, height: 72 }}
+                />
+              ) : (
+                <AvatarIcon avatarType={avatarType} avatarValue={avatarValue} size={72} />
+              )}
             </button>
             <button onClick={() => setPickerOpen(true)} className="text-xs mt-2" style={{ color: accent }}>
               Обрати аватарку
+            </button>
+
+            <input
+              id="auth-avatar-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleSelectPhotoFile(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              onClick={() =>
+                document.getElementById('auth-avatar-upload')?.click()
+              }
+              className="text-xs mt-1"
+              style={{ color: MUTED }}
+            >
+              або завантажити своє фото
             </button>
           </div>
         )}
@@ -292,7 +354,12 @@ export default function AuthView({ accent, onAuthed }) {
       </div>
 
       {pickerOpen && (
-        <AvatarPicker selected={avatarValue} onSelect={(v) => { setAvatarValue(v); setAvatarType('icon'); }} onClose={() => setPickerOpen(false)} />
+        <AvatarPicker
+          selected={avatarType === 'icon' ? avatarValue : null}
+          onSelect={(v) => { setAvatarValue(v); setAvatarType('icon'); setAvatarFile(null); setAvatarPreviewUrl(null); }}
+          onUploadPhoto={(file) => handleSelectPhotoFile(file)}
+          onClose={() => setPickerOpen(false)}
+        />
       )}
     </div>
   );

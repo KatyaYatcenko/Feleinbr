@@ -44,6 +44,12 @@ async function uploadToSupabaseStorage(filename, buffer, contentType) {
   const res = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
+      // Нові ключі Supabase (sb_secret_...) — це НЕ JWT, тому їх треба
+      // класти саме в заголовок apikey, а не Authorization: Bearer
+      // (звідти й помилка "Invalid Compact JWS" — сервер намагався
+      // розпарсити ключ як JWT-токен). Authorization лишаємо так само —
+      // Supabase приймає його, якщо збігається зі значенням apikey.
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
       Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
       'Content-Type': contentType,
       'x-upsert': 'false',
