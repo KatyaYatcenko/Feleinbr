@@ -52,13 +52,7 @@ export default function AuthView({ accent, onAuthed }) {
         }
         setLoading(true);
         try {
-          const res = await fetch('/api/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email.trim() }),
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Помилка надсилання коду');
+          const data = await api.forgotPassword({ email: email.trim() });
           setMessage(data.message || 'Якщо email є в системі, код відправлено!');
           setResetStep(2);
         } catch (e) {
@@ -73,13 +67,11 @@ export default function AuthView({ accent, onAuthed }) {
         }
         setLoading(true);
         try {
-          const res = await fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: email.trim(), code: resetCode.trim(), newPassword }),
+          await api.resetPassword({
+            email: email.trim(),
+            code: resetCode.trim(),
+            newPassword,
           });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Помилка скидання пароля');
           setMessage('Пароль успішно змінено! Тепер можеш увійти.');
           setMode('login');
           setResetStep(1);
