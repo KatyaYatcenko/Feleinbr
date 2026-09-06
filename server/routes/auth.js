@@ -28,6 +28,45 @@ function makeResetCode() {
 }
 
 async function sendResetEmail(email, code) {
+  // ВАЖЛИВО: з вересня 2025 безкоштовні сервіси Render повністю блокують
+  // вихідні SMTP-порти (25, 465, 587) на мережевому рівні — це офіційна
+  // політика проти спаму (render.com/docs/free), і жодні налаштування
+  // коду/nodemailer це не обійдуть. Тому лист відправляємо через звичайний
+  // HTTPS-запит до Brevo (https://www.brevo.com) — порт 443 не блокується.
+  // Якщо BREVO_API_KEY не задано — падаємо назад на SMTP (годиться для
+  // локальної розробки на своєму комп'ютері, де SMTP не заблокований).
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          sender: {
+            email: process.env.MAIL_FROM || process.env.SMTP_USER || 'no-reply@feleinbr.app',
+            name: 'Фелейнбр',
+          },
+          to: [{ email }],
+          subject: 'Код для відновлення пароля — Фелейнбр',
+          htmlContent: `<p>Твій код для відновлення пароля: <b style="font-size:20px">${code}</b></p><p>Код дійсний 10 хвилин.</p>`,
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Brevo API: ${res.status} ${errText}`);
+      }
+
+      return true;
+    } catch (err) {
+      console.error('Send reset email error (Brevo):', err);
+      return false;
+    }
+  }
+
   try {
     const nodemailer = await import('nodemailer').catch(() => null);
     if (!nodemailer || !process.env.SMTP_HOST) {
@@ -43,11 +82,6 @@ async function sendResetEmail(email, code) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
-      // Render (як і багато хмарних хостингів) не має нормальної
-      // вихідної підтримки IPv6 — а smtp.gmail.com резолвиться і в IPv6
-      // адресу теж, і Node іноді обирає саме її, що дає
-      // "connect ENETUNREACH ...:587". family: 4 примусово змушує
-      // під'єднуватись тільки по IPv4, де таких проблем нема.
       family: 4,
     });
 
@@ -59,7 +93,7 @@ async function sendResetEmail(email, code) {
     });
     return true;
   } catch (err) {
-    console.error('Send reset email error:', err);
+    console.error('Send reset email error (SMTP):', err);
     return false;
   }
 }
