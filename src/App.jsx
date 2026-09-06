@@ -408,12 +408,13 @@ export default function App() {
           style={{ background: BG }}
         >
           <div
-            className="w-full h-full md:h-auto md:max-h-[92vh] md:my-auto md:max-w-[420px] md:rounded-3xl overflow-hidden flex"
+            className="w-full h-full md:h-auto md:min-h-[480px] md:max-h-[92vh] md:my-auto md:max-w-[420px] md:rounded-3xl flex"
             style={{
               color: TEXT,
               fontFamily: 'Inter, sans-serif',
               border: '1px solid rgba(255,255,255,0.06)',
               background: BG,
+              overflowY: 'auto',
             }}
           >
             <AuthView

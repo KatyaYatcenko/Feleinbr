@@ -137,7 +137,7 @@ export default function AuthView({ accent, onAuthed }) {
   }
 
   return (
-    <div className="flex flex-col h-full px-5 py-8 justify-between overflow-y-auto">
+    <div className="flex flex-col w-full px-5 py-8 justify-between">
       <div>
         <h1 className="text-2xl font-extrabold mb-1" style={{ fontFamily: 'Unbounded, sans-serif', color: TEXT }}>
           {mode === 'register' ? 'Створити акаунт' : mode === 'login' ? 'Вхід' : 'Відновлення'}
