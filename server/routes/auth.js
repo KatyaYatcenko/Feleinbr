@@ -43,6 +43,12 @@ async function sendResetEmail(email, code) {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
       },
+      // Render (як і багато хмарних хостингів) не має нормальної
+      // вихідної підтримки IPv6 — а smtp.gmail.com резолвиться і в IPv6
+      // адресу теж, і Node іноді обирає саме її, що дає
+      // "connect ENETUNREACH ...:587". family: 4 примусово змушує
+      // під'єднуватись тільки по IPv4, де таких проблем нема.
+      family: 4,
     });
 
     await transporter.sendMail({
