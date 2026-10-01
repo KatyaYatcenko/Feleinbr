@@ -1,118 +1,170 @@
-# Фелейнбр — фінальна версія
+# Feleinbr
 
-Веб-додаток для спілкування з AI-персонажами: живий діалог без описів дій у зірочках/дужках,
-кастомна кольорова гама, приватні й публічні персонажі, фото в чаті, справжні акаунти.
+A web application for chatting with AI characters. Users can create their own characters, make them private or public, and talk to them in a natural messenger-style format — without roleplay narration such as `*smiles*`.
 
-## Структура проєкту
+The interface and character prompts are designed for Ukrainian.
 
-```
+## Online version
+
+https://feleinbr.vercel.app/
+
+## Main Features
+
+* **User accounts** — registration and login with bcrypt password hashing and JWT authentication.
+* **Custom characters** — name, personality description, avatar, and visibility settings.
+* **Private and public characters**
+
+  * private characters are available only to their owner;
+  * public characters are available to all users;
+  * each user has a separate conversation history with public characters.
+* **Natural chat style** — the system prompt instructs characters to reply briefly and naturally, without action descriptions in asterisks or brackets.
+* **Personalized replies** — characters receive the user's name and gender to generate appropriate forms of address in Ukrainian.
+* **Photo messages** — users can attach images to messages.
+* **Custom colors** — button, user message, and character message colors can be customized separately.
+* **Responsive interface** — separate layouts for desktop and mobile.
+
+## Technologies
+
+| Part           | Technologies                 |
+| -------------- | ---------------------------- |
+| Frontend       | React 18, Vite, Tailwind CSS |
+| Backend        | Node.js, Express             |
+| Database       | SQLite, better-sqlite3       |
+| Authentication | JWT, bcrypt                  |
+| AI             | OpenRouter                   |
+| Deployment     | Vercel / Render              |
+
+## Architecture
+
+```text id="5fniww"
 feleinbr/
-├── src/                    # Фронтенд (React + Vite + Tailwind)
+├── src/                          # Frontend
 │   ├── components/
-│   ├── api/client.js       # Звернення до бекенду + токен авторизації
+│   │   ├── AuthView.jsx          # Registration and login
+│   │   ├── ListView.jsx          # Character list
+│   │   ├── CreateView.jsx        # Character creation
+│   │   ├── ChatView.jsx          # Chat
+│   │   ├── SettingsView.jsx      # Settings
+│   │   ├── AvatarPicker.jsx      # Avatar selection
+│   │   └── Header.jsx
+│   ├── api/client.js             # API requests and authentication
+│   ├── data/avatars.js           # Avatar gallery
+│   ├── utils/colors.js            # Color utilities
 │   └── App.jsx
-└── server/                 # Бекенд (Express + SQLite)
-    ├── db.js                # Схема бази даних
+│
+└── server/                       # Backend
+    ├── index.js                  # Express server
+    ├── db.js                     # SQLite connection and schema
+    ├── middleware/
+    │   └── auth.js               # JWT middleware
     ├── routes/
-    │   ├── auth.js          # Реєстрація / вхід / /me
-    │   ├── characters.js    # Список/створення/видалення персонажів
-    │   ├── messages.js      # Чат + звернення до AI-провайдерів
-    │   └── upload.js        # Завантаження фото
-    └── uploads/              # Завантажені зображення (створюється автоматично)
+    │   ├── auth.js               # Registration and login
+    │   ├── characters.js         # Character management
+    │   ├── messages.js           # Messages and AI requests
+    │   └── upload.js             # Image uploads
+    └── uploads/                  # Uploaded images
 ```
 
-## AI-провайдери
+## How the AI Chat Works
 
-Застосунок автоматично перебирає кілька AI-сервісів по черзі — якщо один недоступний
-або вичерпав ліміт, пробує наступний. Ключі, яких немає в `.env`, просто пропускаються.
+1. The user sends a message to a character.
+2. The backend checks whether the user has access to the character.
+3. The message is saved to SQLite.
+4. The server builds a system prompt using the character's data and the user's profile.
+5. The conversation history and system prompt are sent to OpenRouter.
+6. The generated response is saved to the database and returned to the frontend.
 
-Для повідомлень **із фото** використовуються лише провайдери, які реально вміють
-аналізувати зображення (vision) — інакше модель або ігнорує фото, або мовчить:
+Public characters can be used by multiple users, while each user has their own separate conversation history.
 
-| Провайдер | Бачить фото? | Де взяти ключ |
-|---|---|---|
-| OpenAI (ChatGPT) | ✅ | https://platform.openai.com/api-keys |
-| Gemini | ✅ | https://aistudio.google.com/apikey |
-| OpenRouter | ✅ (залежно від обраної безкоштовної моделі) | https://openrouter.ai/keys |
-| Groq | ❌ (тільки текст) | https://console.groq.com/keys |
-| Mistral AI | ❌ (тільки текст) | https://console.mistral.ai/api-keys |
-| DeepSeek | ❌ (тільки текст) | https://platform.deepseek.com/api_keys |
+## Running Locally
 
-Щоб бот справді "читав" фото, а не мовчав — додай хоча б один ключ із перших трьох рядків
-(найпростіше — OpenAI або Gemini, у обох є безкоштовний ліміт).
+### Requirements
 
-Безкоштовні моделі мають ліміти швидкості (запитів на хвилину/день) — це нормально
-для тестування й невеликого застосунку, але для великого навантаження варто буде
-розглянути платну модель.
+* Node.js 18+
+* npm
+* OpenRouter API key
 
-## Запуск локально
+### Backend
 
-### 1. Бекенд
-```bash
+```bash id="t3briz"
 cd server
 npm install
 cp .env.example .env
-# відкрий .env і встав хоча б один ключ провайдера (наприклад OPENAI_API_KEY)
-# та вигадай JWT_SECRET
+```
+
+Add the following to `server/.env`:
+
+```env id="vrrl4e"
+OPENROUTER_API_KEY=your_openrouter_key
+OPENROUTER_MODEL=your_model
+JWT_SECRET=your_secret
+PORT=3001
+```
+
+Start the backend:
+
+```bash id="ws1m6o"
 npm start
 ```
-Сервер підніметься на http://localhost:3001, база даних `feleinbr.sqlite`
-створиться автоматично при першому запуску.
 
-### 2. Фронтенд (в іншому терміналі)
-```bash
+The backend will run at:
+
+```text id="7xrwik"
+http://localhost:3001
+```
+
+### Frontend
+
+In another terminal:
+
+```bash id="m33sf7"
 npm install
 npm run dev
 ```
-Відкриється на http://localhost:5173
 
-## ⚠️ Постійне сховище (DATA_DIR) — важливо для продакшену
+The frontend will be available at:
 
-За замовчуванням база `feleinbr.sqlite` і завантажені фото лежать поруч із кодом сервера.
-Це нормально для локальної розробки, але **на безкоштовних хостингах на кшталт Render
-диск не постійний** — після кожного redeploy або "засинання" сервера через простій
-весь диск скидається до стану з git-репозиторію. Через це:
-
-- завантажені фото (аватарки персонажів і профілю) "ламаються" — файл фізично зникає;
-- персонажі, створені після останнього деплою, ніби самі видаляються — насправді
-  скидається вся база.
-
-**Рішення:** підключи постійний диск (наприклад, платний Render Disk, ~$0.25/ГБ/міс),
-вкажи його точку монтування у змінній середовища `DATA_DIR` — і база разом із фото
-почнуть зберігатися по-справжньому, а не скидатися.
-
-```bash
-# у server/.env або в змінних середовища хостингу
-DATA_DIR=/var/data
+```text id="to96kr"
+http://localhost:5173
 ```
 
-Якщо `DATA_DIR` не задано — все працює як і раніше (файли поруч із кодом), просто без
-гарантії довготривалого зберігання на хостингах з ефемерним диском.
+## Main API Endpoints
 
-## Що є у фінальній версії
+| Method | Endpoint                     | Purpose                  |
+| ------ | ---------------------------- | ------------------------ |
+| POST   | `/api/auth/register`         | Register a new account   |
+| POST   | `/api/auth/login`            | Log in                   |
+| GET    | `/api/auth/me`               | Get the current user     |
+| GET    | `/api/characters`            | Get available characters |
+| POST   | `/api/characters`            | Create a character       |
+| DELETE | `/api/characters/:id`        | Delete a character       |
+| GET    | `/api/messages/:characterId` | Get conversation history |
+| POST   | `/api/messages/:characterId` | Send a message           |
+| POST   | `/api/upload`                | Upload an image          |
 
-- **Реєстрація/вхід** — справжні акаунти з паролем (bcrypt), токен входу (JWT),
-  дані зберігаються в SQLite й нікуди не зникають між сесіями (за умови постійного
-  диска — див. розділ вище)
-- **Приватні й публічні персонажі**:
-  - приватний — бачить і спілкується лише власник
-  - публічний — бачать усі користувачі, але діалог з ним у кожного окремий і
-    зберігається саме на його акаунті
-- **Аватарки** — галерея іконок або власне завантажене фото (і для персонажа, і для себе);
-  якщо фото з якоїсь причини недоступне, застосунок акуратно показує іконку замість
-  битої картинки
-- **Фото в чаті** — можна прикріпити зображення до повідомлення. Якщо підключено хоча б
-  один vision-провайдер (ChatGPT/Gemini/OpenRouter) — модель реально аналізує вміст фото
-  й відповідає по суті, з урахуванням опису персонажа
-- **Кольори**: окремо колір кнопок, колір твоїх повідомлень, колір повідомлень персонажа
-- **Модель без спеціального відключення стандартних запобіжників** — застосунок
-  використовує звичайну поведінку обраної моделі
+## Data Storage
 
-## Можливі наступні кроки
+The application uses SQLite to store users, characters, and messages.
 
-- Редагування вже створеного персонажа
-- Пошук/фільтри в списку публічних персонажів
-- Безкоштовні моделі можуть відповідати повільніше або впиратись у ліміт швидкості
-  під навантаженням — можна додати чергу запитів або платну модель як запасний варіант
-- Міграція бази з SQLite на хмарну (Postgres/Supabase) як альтернатива `DATA_DIR`,
-  якщо хочеться повністю відв'язатись від локального диска сервера
+Uploaded images are also stored on the server.
+
+This is sufficient for local development. On hosting platforms with ephemeral storage, the database and uploaded files require persistent storage; otherwise, they may be lost after a redeploy or server restart.
+
+## Current Limitations
+
+* Characters cannot currently be edited after creation.
+* There is no search or filtering for public characters.
+* Free AI models may have rate limits.
+* Long conversation histories increase the number of tokens sent with each request.
+* Production deployment requires persistent storage for SQLite and uploaded files.
+
+## Possible Improvements
+
+* Character editing.
+* Search and filtering.
+* Pagination for message history.
+* API rate limiting.
+* Migration from SQLite to PostgreSQL/Supabase.
+* Persistent file storage for uploaded images.
+* Automated frontend and backend tests.
+* Vision-model support for full image understanding.
